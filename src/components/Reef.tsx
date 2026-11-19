@@ -56,7 +56,7 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-mist" role="progressbar" aria-valuenow={Math.round(lv.progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to next level">
           <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${lv.progress * 100}%` }} />
         </div>
-        <p className="mt-1 text-xs text-muted">{lv.next ? `${lv.toNext} points to ${lv.next.emoji} ${lv.next.name}` : 'You’ve reached the deepest level!'}</p>
+        <p className="mt-1 text-xs text-muted">{lv.next ? `${lv.toNext} more book${lv.toNext === 1 ? '' : 's'} to reach ${lv.next.emoji} ${lv.next.name} (${lv.next.at.toLocaleString()} books)` : 'You’ve reached the deepest level: 1,000 books!'}</p>
         <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
           <button className="text-sm text-accent underline" onClick={() => setLevelsOpen(true)}>See all {LEVELS.length} levels</button>
           <button className="text-sm text-accent underline" onClick={() => setShowPoints(!showPoints)} aria-expanded={showPoints}>How do I earn points?</button>
@@ -159,31 +159,31 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
         <p className="serif mt-1 text-lg">{triviaOfTheDay(now)}</p>
       </section>
 
-      {levelsOpen && <LevelsSheet points={s.points} onClose={() => setLevelsOpen(false)} />}
+      {levelsOpen && <LevelsSheet books={s.finishedBooks} points={s.points} onClose={() => setLevelsOpen(false)} />}
     </div>
   )
 }
 
-function LevelsSheet({ points, onClose }: { points: number; onClose: () => void }) {
-  const cur = LEVELS.reduce((a, l, i) => (points >= l.at ? i : a), 0)
+function LevelsSheet({ books, points, onClose }: { books: number; points: number; onClose: () => void }) {
+  const cur = LEVELS.reduce((a, l, i) => (books >= l.at ? i : a), 0)
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="All levels">
       <div className="sheet-in card max-h-[85vh] w-full max-w-md overflow-y-auto rounded-b-none p-5 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between"><h3 className="text-xl font-bold">The ocean ladder</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
-        <p className="mt-1 text-sm text-muted">Earn points by finishing books. Each level is a deeper sea creature. You have <strong className="text-gold">{points.toLocaleString()}</strong> points.</p>
+        <p className="mt-1 text-sm text-muted">Levels are earned by <strong>finishing books</strong>. Each level is a deeper sea creature, and the climb gets steeper, up to the Kraken at 1,000 books. You’ve finished <strong className="text-gold">{books.toLocaleString()}</strong>.</p>
         <ol className="mt-4 space-y-2">
           {LEVELS.map((l, i) => {
             const state = i < cur ? 'done' : i === cur ? 'now' : 'locked'
             return (
               <li key={l.name} className={`flex items-center gap-3 rounded-xl border p-3 ${state === 'now' ? 'border-gold bg-mist' : 'border-line'} ${state === 'locked' ? 'opacity-60' : ''}`} aria-current={state === 'now' ? 'step' : undefined}>
                 <span className={`text-3xl ${state === 'locked' ? 'grayscale' : ''}`} aria-hidden>{l.emoji}</span>
-                <span className="min-w-0 flex-1"><span className="block font-display font-bold">Level {i + 1} · {l.name}</span><span className="block text-xs text-muted">{l.at === 0 ? 'Where everyone starts' : `${l.at.toLocaleString()} points`}</span></span>
-                <span className="text-xs font-semibold">{state === 'done' ? '✓ Reached' : state === 'now' ? 'You are here' : `${(l.at - points).toLocaleString()} to go`}</span>
+                <span className="min-w-0 flex-1"><span className="block font-display font-bold">Level {i + 1} · {l.name}</span><span className="block text-xs text-muted">{l.at === 0 ? 'Where everyone starts' : `${l.at.toLocaleString()} books finished`}</span></span>
+                <span className="text-xs font-semibold">{state === 'done' ? '✓ Reached' : state === 'now' ? 'You are here' : `${(l.at - books).toLocaleString()} to go`}</span>
               </li>
             )
           })}
         </ol>
-        <p className="mt-3 text-xs text-muted">A finished book is worth 100 points. Ratings, notes, new genres, goals and re-reads earn extra.</p>
+        <p className="mt-3 text-xs text-muted">Points are a separate score: a finished book is worth 100, and ratings, notes, new genres, goals and re-reads earn extra. You have {points.toLocaleString()} points.</p>
       </div>
     </div>
   )

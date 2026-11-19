@@ -34,6 +34,7 @@ export function FilterBar({ views, filters, setFilters, sort, setSort }: { views
           <Sel k="genre" label="Genre" opts={distinct(views, (v) => v.book.genres).map((g) => [g, g])} />
           <Sel k="author" label="Author" opts={distinct(views, (v) => v.book.authors).map((a) => [a, a])} />
           <Sel k="series" label="Series" opts={distinct(views, (v) => [v.book.series]).map((s) => [s, s])} />
+          <Sel k="spice" label="Spice level" opts={[['none', 'None'], ['1', '🌶 1 and up'], ['3', '🌶🌶🌶 3 and up'], ['5', '🌶🌶🌶🌶🌶 5 only']]} />
           <label className="block text-xs font-semibold text-muted">My rating
             <select className="field mt-1 text-sm font-normal text-ink" value={filters.minRating} onChange={(e) => set('minRating', +e.target.value)}>
               <option value={0}>Any</option>{[5, 4, 3, 2].map((n) => <option key={n} value={n}>{n}★ and up</option>)}

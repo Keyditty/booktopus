@@ -1,9 +1,10 @@
 // Per-device settings. Keys live only in this browser's localStorage and are never sent anywhere except the
 // provider they belong to. (try/catch: storage can be unavailable in private windows.)
 export type ThemeName = 'deep' | 'lagoon'
-export interface Settings { googleKey: string; anthropicKey: string; lookupOnline: boolean; theme: ThemeName; ownerName: string; yearlyGoal: number; monthlyGoal: number }
+export type SearchMode = 'library' | 'web'
+export interface Settings { googleKey: string; anthropicKey: string; lookupOnline: boolean; theme: ThemeName; ownerName: string; yearlyGoal: number; monthlyGoal: number; hardcoverToken: string; searchMode: SearchMode; tourDone: boolean }
 const KEY = 'booktopus-settings'
-const DEFAULTS: Settings = { googleKey: '', anthropicKey: '', lookupOnline: true, theme: 'deep', ownerName: 'Toni', yearlyGoal: 24, monthlyGoal: 2 }
+const DEFAULTS: Settings = { googleKey: '', anthropicKey: '', lookupOnline: true, theme: 'deep', ownerName: 'Toni', yearlyGoal: 24, monthlyGoal: 2, hardcoverToken: '', searchMode: 'library', tourDone: false }
 export function getSettings(): Settings {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return DEFAULTS }
 }

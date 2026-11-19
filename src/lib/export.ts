@@ -8,8 +8,8 @@ export async function exportCsv(): Promise<string> {
   const [books, sources] = await Promise.all([db.books.toArray(), db.sources.toArray()])
   const by = new Map<string, SourceRecord[]>()
   sources.forEach((s) => by.set(s.bookId, [...(by.get(s.bookId) ?? []), s]))
-  const head = ['Title', 'Subtitle', 'Author', 'Narrator', 'Series', 'Series #', 'Status', 'Want to read', 'Favorite', 'Rating', 'Date started', 'Date finished', 'Sources', 'Formats', 'Genres', 'ISBN', 'Year', 'Notes']
-  const rows = books.map((b: Book) => [b.title, b.subtitle, b.authors.join('; '), b.narrator, b.series, b.seriesNumber, b.status, b.wantToRead ? 'yes' : '', b.favorite ? 'yes' : '', b.rating, b.startedAt, b.finishedAt,
+  const head = ['Title', 'Subtitle', 'Author', 'Narrator', 'Series', 'Series #', 'Status', 'Want to read', 'Favorite', 'Rating', 'Spice (0-5)', 'Date started', 'Date finished', 'Sources', 'Formats', 'Genres', 'ISBN', 'Year', 'Notes']
+  const rows = books.map((b: Book) => [b.title, b.subtitle, b.authors.join('; '), b.narrator, b.series, b.seriesNumber, b.status, b.wantToRead ? 'yes' : '', b.favorite ? 'yes' : '', b.rating, b.spice, b.startedAt, b.finishedAt,
     [...new Set((by.get(b.id) ?? []).map((s) => s.source))].join('; '), [...new Set((by.get(b.id) ?? []).map((s) => s.format))].join('; '), b.genres.join('; '), b.identifiers.isbn, b.year, b.notes].map(q).join(','))
   return [head.map(q).join(','), ...rows].join('\n')
 }

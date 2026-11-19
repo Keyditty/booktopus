@@ -53,13 +53,20 @@ describe('counts and streaks', () => {
 })
 
 describe('levels, badges, messages', () => {
-  it('maps points to levels', () => { expect(levelFor(0).name).toBe('Plankton'); expect(levelFor(150).name).toBe('Shrimp'); expect(levelFor(99999).next).toBeUndefined() })
+  it('maps books finished to levels, topping out at 1,000 books', () => {
+    expect(levelFor(0).name).toBe('Plankton'); expect(levelFor(9).name).toBe('Plankton'); expect(levelFor(10).name).toBe('Shrimp')
+    expect(levelFor(49).name).toBe('Clownfish'); expect(levelFor(50).name).toBe('Sea Turtle'); expect(levelFor(250).name).toBe('Shark')
+    expect(levelFor(999).name).toBe('Octopus'); expect(levelFor(1000).name).toBe('Kraken'); expect(levelFor(1000).next).toBeUndefined()
+    expect(levelFor(5).toNext).toBe(5)
+  })
   it('announces points, level-ups and badges once', () => {
-    const before = computeStats(views([]), GOALS, NOW)
-    const after = computeStats(views([book({ status: 'finished', finishedAt: '2026-06-01', rating: 5, notes: 'great', genres: ['Fantasy'] })]), GOALS, NOW)
+    const nine = Array.from({ length: 9 }, (_, i) => book({ status: 'finished', finishedAt: `2026-0${(i % 5) + 1}-10` }))
+    const before = computeStats(views(nine), GOALS, NOW)
+    const after = computeStats(views([...nine, book({ status: 'finished', finishedAt: '2026-06-01', rating: 5, notes: 'great', genres: ['Fantasy'] })]), GOALS, NOW)
     const msg = diffMessage(before, after)!
-    expect(msg).toContain('+190 points'); expect(msg).toContain('Shrimp'); expect(msg).toContain('First Catch')
+    expect(msg).toContain('+190 points'); expect(msg).toContain('Level up'); expect(msg).toContain('Shrimp')
     expect(diffMessage(after, after)).toBeNull()
+    expect(diffMessage(computeStats(views([]), GOALS, NOW), computeStats(views(nine.slice(0, 1)), GOALS, NOW))).toContain('First Catch')
   })
 })
 

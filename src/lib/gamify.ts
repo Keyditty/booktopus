@@ -6,10 +6,11 @@ import type { BookView } from './shelves'
 
 export const POINTS = { finish: 100, reread: 50, rated: 20, notes: 20, newGenre: 50, monthGoal: 100, yearGoal: 300 } as const
 
+/** Levels are earned by BOOKS FINISHED. Each step roughly doubles or more, so the top level (1,000 books) is a true long-term goal. */
 export const LEVELS: { at: number; name: string; emoji: string }[] = [
-  { at: 0, name: 'Plankton', emoji: '🦠' }, { at: 150, name: 'Shrimp', emoji: '🦐' }, { at: 400, name: 'Clownfish', emoji: '🐠' },
-  { at: 800, name: 'Sea Turtle', emoji: '🐢' }, { at: 1400, name: 'Dolphin', emoji: '🐬' }, { at: 2200, name: 'Shark', emoji: '🦈' },
-  { at: 3500, name: 'Octopus', emoji: '🐙' }, { at: 5500, name: 'Kraken', emoji: '🦑' },
+  { at: 0, name: 'Plankton', emoji: '🦠' }, { at: 10, name: 'Shrimp', emoji: '🦐' }, { at: 25, name: 'Clownfish', emoji: '🐠' },
+  { at: 50, name: 'Sea Turtle', emoji: '🐢' }, { at: 100, name: 'Dolphin', emoji: '🐬' }, { at: 250, name: 'Shark', emoji: '🦈' },
+  { at: 500, name: 'Octopus', emoji: '🐙' }, { at: 1000, name: 'Kraken', emoji: '🦑' },
 ]
 
 export interface Goals { yearly: number; monthly: number }
@@ -29,7 +30,8 @@ export function finishesOf(views: BookView[]): Finish[] {
   return out
 }
 
-export function levelFor(points: number) {
+export function levelFor(booksFinished: number) {
+  const points = booksFinished
   let i = 0
   LEVELS.forEach((l, k) => { if (points >= l.at) i = k })
   const cur = LEVELS[i], next = LEVELS[i + 1]
@@ -125,7 +127,7 @@ export function computeStats(views: BookView[], goals: Goals, now = new Date()) 
   ]
 
   return {
-    points, breakdown, level: levelFor(points), finishes: finishes.length, finishedBooks: totalBooks, undated, libraryBooks: views.length,
+    points, breakdown, level: levelFor(totalBooks), finishes: finishes.length, finishedBooks: totalBooks, undated, libraryBooks: views.length,
     perMonth, perYear, thisYear: yearDone, thisMonth: perMonth.get(thisMonth) ?? 0, streak: st,
     goals: { ...goals, yearDone, monthDone: perMonth.get(thisMonth) ?? 0, onPace: yearDone >= paceExpected, expected: Math.round(paceExpected) },
     genres, authors, formats, services, badges, earnedBadges: badges.filter((b) => b.earned).length, byId,

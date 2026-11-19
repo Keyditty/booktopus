@@ -141,7 +141,7 @@ export function newBookFrom(c: Candidate, batchId: string): Book {
     id: newId(), title: c.title, subtitle: c.subtitle, authors: c.authors, narrator: c.narrator, series: c.series, seriesNumber: c.seriesNumber,
     synopsis: c.synopsis, genres: c.genres ?? [], year: c.year, coverUrl: c.coverUrl, identifiers: { ...c.identifiers },
     status: status === 'unknown' && c.completionHint ? (c.completionHint.value === 'finished' ? 'finished' : 'in_progress') : status,
-    statusSource: 'import', wantToRead: !!c.wantToRead, favorite: !!c.favorite, rating: c.rating, notes: c.notes,
+    statusSource: 'import', wantToRead: !!c.wantToRead, favorite: !!c.favorite, rating: c.rating, spice: c.spice, notes: c.notes,
     startedAt: c.startedAt, finishedAt: c.finishedAt, readings: [], userEdited: [], createdAt: t, updatedAt: t, createdBatchId: batchId,
   }
 }
@@ -156,7 +156,7 @@ export function applyCandidate(book: Book, c: Candidate): boolean {
     if (cur == null || (Array.isArray(cur) && cur.length === 0) || cur === '') { book[k] = v; changed = true }
   }
   fill('subtitle', c.subtitle); fill('narrator', c.narrator); fill('series', c.series); fill('seriesNumber', c.seriesNumber)
-  fill('synopsis', c.synopsis); fill('coverUrl', c.coverUrl); fill('year', c.year); fill('rating', c.rating); fill('notes', c.notes)
+  fill('synopsis', c.synopsis); fill('coverUrl', c.coverUrl); fill('year', c.year); fill('rating', c.rating); fill('spice', c.spice); fill('notes', c.notes)
   fill('startedAt', c.startedAt); fill('finishedAt', c.finishedAt)
   if (c.genres?.length) fill('genres', c.genres)
   if (c.authors.length) fill('authors', c.authors)
@@ -293,7 +293,7 @@ export async function mergeBooks(keepId: string, otherId: string) {
   await db.transaction('rw', [db.books, db.sources, db.events], async () => {
     const keep = await db.books.get(keepId), other = await db.books.get(otherId)
     if (!keep || !other) return
-    for (const k of ['subtitle', 'narrator', 'series', 'seriesNumber', 'synopsis', 'coverUrl', 'year', 'rating', 'notes', 'startedAt', 'finishedAt'] as const) {
+    for (const k of ['subtitle', 'narrator', 'series', 'seriesNumber', 'synopsis', 'coverUrl', 'year', 'rating', 'spice', 'notes', 'startedAt', 'finishedAt'] as const) {
       if (keep[k] == null && other[k] != null) (keep as unknown as Record<string, unknown>)[k] = other[k]
     }
     keep.genres = Array.from(new Set([...keep.genres, ...other.genres]))

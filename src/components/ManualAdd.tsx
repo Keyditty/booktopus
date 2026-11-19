@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Cover } from './Cover'
 import { GenrePicker } from './GenrePicker'
+import { SpiceInput } from './SpiceInput'
 import { applyMeta, lookupMeta, searchBooks, type Meta } from '../lib/metadata'
 import { commitImport, planOne, undoBatch } from '../lib/store'
 import { splitAuthors } from '../lib/normalize'
@@ -28,6 +29,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
   const [rating, setRating] = useState(0)
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
+  const [spice, setSpice] = useState<number | undefined>(undefined)
   const [picked, setPicked] = useState<Meta | null>(null)
   const [sugg, setSugg] = useState<Meta[]>([])
   const [searching, setSearching] = useState(false)
@@ -54,7 +56,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
       title: title.trim(), subtitle: picked?.subtitle, authors: splitAuthors(author), narrator: narrator.trim() || undefined,
       series: series.trim() || undefined, seriesNumber: parseFloat(seriesNo) || undefined,
       format, source, identifiers: { ...(picked?.identifiers ?? {}) }, activity: source === 'audible' ? 'purchased' : 'unknown', events: [],
-      rating: rating || undefined, notes: notes.trim() || undefined, coverUrl: picked?.coverUrl, synopsis: picked?.synopsis, year: picked?.year, genres,
+      rating: rating || undefined, spice, notes: notes.trim() || undefined, coverUrl: picked?.coverUrl, synopsis: picked?.synopsis, year: picked?.year, genres,
       confidence: 1, provenance: 'Added by hand', enriched: picked ? 'matched' : undefined,
     }
     STATUS.find((s) => s[0] === status)![2](c)
@@ -76,7 +78,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
     } finally { setBusy(false) }
   }
 
-  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setGenres([]); setDone(null); setUndone(false); setConflict(null) }
+  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setGenres([]); setSpice(undefined); setDone(null); setUndone(false); setConflict(null) }
 
   if (done) return (
     <div className="card fade-in mx-auto max-w-xl p-8 text-center">
@@ -132,6 +134,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
           <div className="mt-1 flex flex-wrap gap-2">{STATUS.map(([k, l]) => <button key={k} type="button" aria-pressed={status === k} onClick={() => setStatus(k)} className={`btn !min-h-10 !py-1.5 text-sm ${status === k ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>)}</div></fieldset>
         <div><span className={lbl}>My rating</span>
           <div className="flex items-center" role="radiogroup" aria-label="My rating">{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => setRating(rating === n ? 0 : n)} className={`h-11 w-9 text-3xl leading-none ${rating >= n ? 'text-gold' : 'text-mist'}`}>★</button>)}</div></div>
+        <div><span className={lbl}>Spice level</span><SpiceInput value={spice} onChange={setSpice} /></div>
         <div><label className={lbl} htmlFor="m-notes">Notes</label><textarea id="m-notes" className="field mt-1 min-h-20" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
       </div>
 

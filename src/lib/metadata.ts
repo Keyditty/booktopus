@@ -125,24 +125,25 @@ export function applyMeta(c: Candidate, m: Meta | null) {
 }
 
 /** Free-text search for the "add a book by hand" form: returns a few likely matches to pick from. */
-export async function searchBooks(query: string): Promise<Meta[]> {
+export async function searchBooks(query: string, limit = 6): Promise<Meta[]> {
   const q = query.trim()
+  const isbn = normIsbn(q)
   if (q.length < 3 || !getSettings().lookupOnline) return []
   const target = { title: q, authors: [] as string[] }
   const out: Meta[] = []
   const key = getSettings().googleKey
   try {
-    const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=6&printType=books&q=${encodeURIComponent(q)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
+    const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=${Math.min(40, limit)}&printType=books&q=${encodeURIComponent(isbn ? `isbn:${isbn}` : q)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
     for (const v of d.items ?? []) { const m = fromGoogle(v, target); if (m) out.push(m) }
   } catch { /* quota or offline */ }
   if (out.length < 3) {
     try {
-      const d = await getJson(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=key,title,subtitle,author_name,first_publish_year,cover_i,isbn,subject`)
+      const d = await getJson(`https://openlibrary.org/search.json?${isbn ? `isbn=${isbn}` : `q=${encodeURIComponent(q)}`}&limit=${limit}&fields=key,title,subtitle,author_name,first_publish_year,cover_i,isbn,subject`)
       for (const x of d.docs ?? []) { const m = fromOpenLibrary(x, target); if (m) out.push(m) }
     } catch { /* offline */ }
   }
   const seen = new Set<string>()
-  return out.filter((m) => { const k = bookKeyOf(m.title, m.authors); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 6)
+  return out.filter((m) => { const k = bookKeyOf(m.title, m.authors); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, limit)
 }
 
 /** Find books by an author or in a genre, for the "Find more" ideas. Needs internet; returns [] offline. */

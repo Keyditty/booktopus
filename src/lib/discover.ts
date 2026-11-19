@@ -36,12 +36,13 @@ export function notInLibrary(results: Meta[], books: Book[]): Meta[] {
   return results.filter((m) => { const hit = bestMatch({ title: m.title, authors: m.authors, identifiers: m.identifiers }, books); return !hit || hit.score < POSSIBLE })
 }
 
-/** One tap: put a discovered book on the Want to Read shelf. */
-export async function addToWantList(m: Meta) {
+/** One tap: add a discovered book, either to Want to Read or simply "I have it". */
+export async function addMeta(m: Meta, opts: { want: boolean; source?: 'manual' }) {
   const c: Candidate = {
-    title: m.title, subtitle: m.subtitle, authors: m.authors, format: 'unknown', source: 'manual', identifiers: m.identifiers, activity: 'unknown', events: [],
-    wantToRead: true, coverUrl: m.coverUrl, synopsis: m.synopsis, year: m.year, genres: m.genres, confidence: 1, provenance: 'Found via Ideas', enriched: 'matched',
+    title: m.title, subtitle: m.subtitle, authors: m.authors, format: 'unknown', source: opts.source ?? 'manual', identifiers: m.identifiers, activity: 'unknown', events: [],
+    wantToRead: opts.want || undefined, coverUrl: m.coverUrl, synopsis: m.synopsis, year: m.year, genres: m.genres, confidence: 1, provenance: 'Found by searching', enriched: 'matched',
   }
   const item = planOne(c, await db.books.toArray())
-  return commitImport([{ ...item, include: true, category: item.matchBookId ? item.category : 'new' }], { adapter: 'discover', label: `Added “${m.title}” to Want to Read` })
+  return commitImport([{ ...item, include: true, category: item.matchBookId ? item.category : 'new' }], { adapter: 'discover', label: `Added “${m.title}”${opts.want ? ' to Want to Read' : ''}` })
 }
+export const addToWantList = (m: Meta) => addMeta(m, { want: true })

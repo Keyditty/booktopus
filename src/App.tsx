@@ -1,20 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookCard } from './components/BookCard'
 import { BookDetail } from './components/BookDetail'
 import { FilterBar } from './components/FilterBar'
 import { ImportFlow, type ImportKind } from './components/ImportFlow'
 import { Home } from './components/Home'
+import { FindBooks } from './components/FindBooks'
+import { SearchBar } from './components/SearchBar'
+import { Tour } from './components/Tour'
 import { SeaFx } from './components/Bubbles'
 import { History, SettingsView } from './components/Secondary'
 import { Reef } from './components/Reef'
 import { computeStats, diffMessage } from './lib/gamify'
 import { useLibrary } from './lib/useLibrary'
-import { getSettings, possessive, saveSettings, type ThemeName } from './lib/settings'
+import { getSettings, possessive, saveSettings, type SearchMode, type ThemeName } from './lib/settings'
 import { NO_FILTERS, SHELVES, applyAll, inShelf, type Filters, type ShelfId, type SortKey } from './lib/shelves'
-import { loadSampleBooks } from './lib/sample'
 
-type View = 'home' | 'shelf' | 'import' | 'history' | 'settings' | 'stats'
-const VIEWS: View[] = ['shelf', 'import', 'history', 'settings', 'stats']
+type View = 'home' | 'shelf' | 'find' | 'import' | 'history' | 'settings' | 'stats'
+const VIEWS: View[] = ['shelf', 'find', 'import', 'history', 'settings', 'stats']
 /** 'shelf' is the Library tab (#library); the default screen with no hash is Home. */
 const readHash = (): View => { const h = location.hash.replace('#', ''); return h === 'library' ? 'shelf' : VIEWS.includes(h as View) ? (h as View) : 'home' }
 
@@ -33,6 +35,8 @@ export default function App() {
   const [name, setNameState] = useState(getSettings().ownerName)
   const [goals, setGoalsState] = useState({ yearly: getSettings().yearlyGoal, monthly: getSettings().monthlyGoal })
   const setGoals = (g: { yearly: number; monthly: number }) => { setGoalsState(g); saveSettings({ yearlyGoal: g.yearly, monthlyGoal: g.monthly }) }
+  const [mode, setModeState] = useState<SearchMode>(getSettings().searchMode)
+  const [tour, setTour] = useState(!getSettings().tourDone)
   const [toast, setToast] = useState<string | null>(null)
   const prevStats = useRef<ReturnType<typeof computeStats> | null>(null)
   const setName = (n: string) => { const v = n.trim() || 'Reader'; setNameState(v); saveSettings({ ownerName: v }) }
@@ -42,6 +46,10 @@ export default function App() {
   useEffect(() => { const h = () => setViewState(readHash()); window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
   const go = (v: View, kind: ImportKind = 'hub', pre = '') => { setMenu(false); setOpenId(null); if (v === 'import') { setImportKind(kind); setPrefill(pre) } location.hash = v === 'home' ? '' : v === 'shelf' ? 'library' : v; setViewState(v) }
   const switchTheme = (t: ThemeName) => { setTheme(t); saveSettings({ theme: t }) }
+  const setMode = (m: SearchMode) => { setModeState(m); saveSettings({ searchMode: m }); if (q.trim()) go(m === 'web' ? 'find' : 'shelf') }
+  const onSearch = (v: string) => { setQ(v); if (!v.trim()) return; if (mode === 'web' && view !== 'find') go('find'); if (mode === 'library' && (view === 'home' || view === 'find')) go('shelf') }
+  const finishTour = (goAdd: boolean) => { setTour(false); saveSettings({ tourDone: true }); if (goAdd) go('import') }
+  const goHomeForTour = useCallback(() => { if (readHash() !== 'home') { location.hash = ''; setViewState('home') } }, [])
 
   const shown = useMemo(() => applyAll(views, shelf, q, filters, sort), [views, shelf, q, filters, sort])
   const counts = useMemo(() => Object.fromEntries(SHELVES.map((s) => [s.id, views.filter((v) => inShelf(v, s.id)).length])), [views])
@@ -69,12 +77,13 @@ export default function App() {
             <span><span className="block font-display text-xl font-bold leading-none tracking-wide sm:text-3xl">Booktopus</span><span className="serif text-sm italic text-muted">{possessive(name)} underwater library</span></span>
           </button>
           <div className="ml-auto flex items-center gap-2">
-            <button className="btn btn-primary whitespace-nowrap" onClick={() => go('import')}><span aria-hidden>＋</span> Add<span className="hidden sm:inline"> books</span></button>
+            <button data-tour="add" className="btn btn-primary whitespace-nowrap" onClick={() => go('import')}><span aria-hidden>＋</span> Add<span className="hidden sm:inline"> books</span></button>
             <div className="relative">
-              <button className="btn btn-ghost !px-3" aria-label="More" aria-expanded={menu} onClick={() => setMenu(!menu)}>⋯</button>
+              <button data-tour="menu" className="btn btn-ghost !px-3" aria-label="More" aria-expanded={menu} onClick={() => setMenu(!menu)}>⋯</button>
               {menu && (
                 <div className="card fade-in absolute right-0 z-30 mt-2 w-56 overflow-hidden py-1 text-sm shadow-lg" style={{ background: 'var(--c-sea)' }}>
                   <button className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => go('import', 'manual')}>Add one book by hand</button>
+                  <button className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => { setMenu(false); setTour(true) }}>Take the tour</button>
                   {([['stats', 'Reading Reef (stats & badges)'], ['history', 'Import history'], ['settings', 'Settings & backup']] as const).map(([v, l]) => <button key={v} className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => go(v)}>{l}</button>)}
                   <button className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => { switchTheme(theme === 'deep' ? 'lagoon' : 'deep'); setMenu(false) }}>{theme === 'deep' ? '🏝️ Sunlit Lagoon colors' : '🌌 Deep Sea colors'}</button>
                 </div>
@@ -83,14 +92,10 @@ export default function App() {
           </div>
         </header>
 
-        {(view === 'home' || view === 'shelf' || view === 'stats') && (
+        {(view === 'home' || view === 'shelf' || view === 'find' || view === 'stats') && (
           <main className="mt-5">
-            {view !== 'stats' && <div className="relative">
-              <input type="search" className="field !rounded-full !pl-11" placeholder="Search title, author, narrator, series" value={q}
-                onChange={(e) => { setQ(e.target.value); if (e.target.value && view === 'home') go('shelf') }} aria-label="Search your library" />
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden>🔍</span>
-            </div>}
-            <div className="mt-4 flex justify-center gap-2" role="tablist" aria-label="Main">
+            {view !== 'stats' && <SearchBar q={q} setQ={onSearch} mode={mode} setMode={setMode} />}
+            <div data-tour="tabs" className="mt-4 flex justify-center gap-2" role="tablist" aria-label="Main">
               {([['home', '🐙 Home'], ['shelf', '📚 Library'], ['stats', '🏆 Reef']] as const).map(([v, l]) => (
                 <button key={v} role="tab" aria-selected={view === v} onClick={() => go(v)} className={`btn !min-h-10 !py-1.5 text-sm ${view === v ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
               ))}
@@ -101,10 +106,12 @@ export default function App() {
         {view === 'home' && (
           <main className="mt-5">
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
-              : views.length === 0 ? <Welcome name={name} setName={setName} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
+              : views.length === 0 ? <Welcome name={name} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
               : <Home views={views} name={name} goals={goals} onReef={() => go('stats')} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
           </main>
         )}
+
+        {view === 'find' && <main className="mt-5"><FindBooks q={q} books={data?.books ?? []} onOpen={(id) => setOpenId(id)} /></main>}
 
         {view === 'stats' && <main className="mt-5"><Reef views={views} goals={goals} onOpen={(id) => setOpenId(id)} /></main>}
 
@@ -119,11 +126,11 @@ export default function App() {
             {!loading && views.length > 0 && <div className="mt-3"><FilterBar views={views} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} /></div>}
 
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
-              : views.length === 0 ? <Welcome name={name} setName={setName} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
+              : views.length === 0 ? <Welcome name={name} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
               : shown.length === 0 ? (
                 <div className="mt-14 text-center fade-in">
                   <p className="text-muted">{searching ? `Nothing matches “${q}”.` : 'Nothing on this shelf yet.'}</p>
-                  {searching && <button className="btn btn-primary mt-4" onClick={() => go('import', 'manual', q)}>Add “{q}” by hand</button>}
+                  {searching && <div className="mt-4 flex flex-wrap justify-center gap-2"><button className="btn btn-primary" onClick={() => { setModeState('web'); saveSettings({ searchMode: 'web' }); go('find') }}>🌐 Search all books for “{q}”</button><button className="btn btn-ghost" onClick={() => go('import', 'manual', q)}>Add “{q}” by hand</button></div>}
                 </div>
               ) : (
                 <>
@@ -139,14 +146,16 @@ export default function App() {
           </main>
         )}
 
-        {view !== 'shelf' && view !== 'home' && view !== 'stats' && (
+        {view !== 'shelf' && view !== 'home' && view !== 'stats' && view !== 'find' && (
           <main className="mt-6">
             <button className="mb-4 text-sm text-accent underline" onClick={() => go('home')}>← Home</button>
             {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('home')} prefill={prefill} />}
             {view === 'history' && <History batches={data?.batches ?? []} />}
-            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} name={name} onName={setName} goals={goals} onGoals={setGoals} />}
+            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} name={name} onName={setName} goals={goals} onGoals={setGoals} onTour={() => setTour(true)} />}
           </main>
         )}
+
+        {tour && !loading && <Tour name={name} setName={setName} onNavigate={goHomeForTour} onFinish={finishTour} />}
 
         {toast && <div role="status" className="sheet-in card pointer-events-none fixed inset-x-4 bottom-6 z-[60] mx-auto max-w-md p-4 text-center font-semibold shadow-2xl" style={{ background: 'var(--c-sea)', borderColor: 'var(--c-gold)' }}>🎉 {toast}</div>}
 
@@ -156,19 +165,15 @@ export default function App() {
   )
 }
 
-function Welcome({ name, setName, onImport, onManual }: { name: string; setName: (n: string) => void; onImport: () => void; onManual: () => void }) {
-  const [busy, setBusy] = useState(false)
+function Welcome({ name, onImport, onManual }: { name: string; onImport: () => void; onManual: () => void }) {
   return (
     <div className="card fade-in mx-auto mt-10 max-w-xl p-8 text-center">
       <div className="text-5xl" aria-hidden>🐙</div>
       <h2 className="mt-3 text-2xl font-bold">Welcome{name ? `, ${name}` : ''}</h2>
-      <p className="serif mt-2 text-lg text-muted">Your octopus has eight arms and an empty shelf. Bring in the books you already have — no typing them all in.</p>
-      <label className="mx-auto mt-4 block max-w-xs text-left text-xs font-semibold text-muted" htmlFor="w-name">What should we call you?
-        <input id="w-name" className="field mt-1 font-normal text-ink" defaultValue={name} onBlur={(e) => setName(e.target.value)} autoComplete="given-name" /></label>
+      <p className="serif mt-2 text-lg text-muted">Your octopus has eight arms and an empty shelf. Bring in the books you already have. No typing them all in.</p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <button className="btn btn-primary" onClick={onImport}>Add my books</button>
         <button className="btn btn-ghost" onClick={onManual}>Add one by hand</button>
-        <button className="btn btn-ghost" disabled={busy} onClick={async () => { setBusy(true); await loadSampleBooks() }}>Try sample books</button>
       </div>
     </div>
   )

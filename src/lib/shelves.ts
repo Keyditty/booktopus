@@ -40,8 +40,8 @@ export function inShelf(v: BookView, shelf: ShelfId): boolean {
   }
 }
 
-export interface Filters { source: string; status: string; genre: string; format: string; author: string; series: string; minRating: number }
-export const NO_FILTERS: Filters = { source: '', status: '', genre: '', format: '', author: '', series: '', minRating: 0 }
+export interface Filters { source: string; status: string; genre: string; format: string; author: string; series: string; minRating: number; spice: string }
+export const NO_FILTERS: Filters = { source: '', status: '', genre: '', format: '', author: '', series: '', minRating: 0, spice: '' }
 export type SortKey = 'added' | 'title' | 'author' | 'completed'
 
 export function matchesQuery(v: BookView, q: string): boolean {
@@ -61,7 +61,8 @@ export function applyAll(views: BookView[], shelf: ShelfId, q: string, f: Filter
     (!f.format || v.formats.includes(f.format as Format)) &&
     (!f.author || v.book.authors.includes(f.author)) &&
     (!f.series || v.book.series === f.series) &&
-    (!f.minRating || (v.book.rating ?? 0) >= f.minRating))
+    (!f.minRating || (v.book.rating ?? 0) >= f.minRating) &&
+    (!f.spice || (f.spice === 'none' ? v.book.spice === 0 : (v.book.spice ?? -1) >= +f.spice)))
   const t = (v: BookView) => normTitle(v.book.title)
   const a = (v: BookView) => (v.book.authors[0] ?? '~').split(' ').slice(-1)[0].toLowerCase()
   out.sort((x, y) => {

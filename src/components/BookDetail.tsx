@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Cover } from './Cover'
 import { GenrePicker } from './GenrePicker'
+import { SpiceInput } from './SpiceInput'
+import { SeriesSheet } from './SeriesSheet'
 import { deleteBook, mergeBooks, placeOnArm, readAgain, removeFromArm, setStatus, splitSource, updateBook } from '../lib/store'
 import { assignArms, armMode } from '../lib/arms'
 import { FORMAT_LABEL, SERVICE_COLOR, SERVICE_LABEL, STATUS_LABEL, type BookView } from '../lib/shelves'
@@ -14,6 +16,7 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
   const [editing, setEditing] = useState(false)
   const [mergeId, setMergeId] = useState('')
   const [genresOpen, setGenresOpen] = useState(false)
+  const [seriesOpen, setSeriesOpen] = useState(false)
   const [armMsg, setArmMsg] = useState('')
   const layout = assignArms(all.map((x) => x.book))
   const onArm = layout.some((x) => x?.id === b.id)
@@ -46,6 +49,7 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
               <p className="mt-2 text-lg">{b.authors.join(', ') || <span className="text-muted">Author unknown</span>}</p>
               {b.narrator && <p className="text-sm text-muted">Narrated by {b.narrator}</p>}
               {b.series && <p className="mt-1 text-sm text-accent">{b.series}{b.seriesNumber ? ` · Book ${b.seriesNumber}` : ''}</p>}
+              <button className="mt-1 text-xs text-accent underline" onClick={() => setSeriesOpen(true)}>📚 See the whole series</button>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {v.formats.map((f) => <span key={f} className="rounded-full bg-mist px-2.5 py-0.5 text-xs">{FORMAT_LABEL[f]}</span>)}
                 {b.genres.slice(0, genresOpen ? 0 : 4).map((g) => <span key={g} className="rounded-full border border-mist px-2.5 py-0.5 text-xs text-muted">{g}</span>)}
@@ -83,6 +87,7 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
               ))}
               <span className="ml-2 text-sm text-muted">{b.rating ? 'Your rating' : 'Tap to rate'}</span>
             </div>
+            <div className="mt-3"><span className="text-xs font-semibold text-muted">Spice level</span><SpiceInput value={b.spice} onChange={(v) => patch({ spice: v })} /></div>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="text-xs font-semibold text-muted">Started<input type="date" className="field mt-1 font-normal text-ink" value={b.startedAt ?? ''} onChange={(e) => patch({ startedAt: e.target.value || undefined })} /></label>
               <label className="text-xs font-semibold text-muted">Finished<input type="date" className="field mt-1 font-normal text-ink" value={b.finishedAt ?? ''} onChange={(e) => patch({ finishedAt: e.target.value || undefined })} /></label>
@@ -117,6 +122,8 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
               {!v.sources.length && <li className="text-sm text-muted">No service linked.</li>}
             </ul>
           </section>
+
+          {seriesOpen && <SeriesSheet query={{ title: b.title, author: b.authors[0], series: b.series }} books={all.map((x) => x.book)} onClose={() => setSeriesOpen(false)} />}
 
           <section className="mt-6 border-t border-mist pt-4">
             <button className="text-sm text-accent underline" onClick={() => setEditing(!editing)}>{editing ? 'Hide editing' : 'Edit details, merge or delete'}</button>

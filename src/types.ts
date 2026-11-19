@@ -42,6 +42,8 @@ export interface Book {
   /** which of the octopus's 8 arms (0-7) holds this book; reading vs up-next is derived from status */
   arm?: number
   rating?: number // 1-5
+  /** spice level 0 (none) to 5 (scorching); undefined = not set */
+  spice?: number
   notes?: string
   startedAt?: string
   finishedAt?: string
@@ -119,6 +121,7 @@ export interface Candidate {
   wantToRead?: boolean
   favorite?: boolean
   rating?: number
+  spice?: number
   notes?: string
   startedAt?: string
   finishedAt?: string
