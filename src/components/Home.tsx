@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { Octopus } from './Octopus'
+import { BackupNudge } from './BackupNudge'
 import { Portal } from './Portal'
 import { SeriesCard, useSeriesGroups } from './SeriesView'
 import { placeOnArm, setStatus } from '../lib/store'
@@ -61,6 +62,7 @@ export function Home({ views, name, goals, onReef, onSeries, onOpen, onShelf, on
         <h2 className="text-2xl font-bold sm:text-3xl">{greeting(name)}</h2>
         <p className="serif text-muted">{views.length} books in your library{finishedThisYear ? ` · ${finishedThisYear} finished this year` : ''}</p>
       </div>
+      <BackupNudge bookCount={views.length} />
       <button onClick={onReef} className="card mx-auto mt-4 flex w-full max-w-[460px] items-center gap-3 p-3 text-left transition hover:-translate-y-0.5" aria-label="Open your Reading Reef: level, points and badges">
         <span className="text-3xl" aria-hidden>{st.level.emoji}</span>
         <span className="min-w-0 flex-1">

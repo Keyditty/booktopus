@@ -2,9 +2,9 @@
 // provider they belong to. (try/catch: storage can be unavailable in private windows.)
 export type ThemeName = 'deep' | 'lagoon'
 export type SearchMode = 'library' | 'web'
-export interface Settings { googleKey: string; anthropicKey: string; lookupOnline: boolean; theme: ThemeName; ownerName: string; yearlyGoal: number; monthlyGoal: number; hardcoverToken: string; searchMode: SearchMode; tourDone: boolean }
+export interface Settings { googleKey: string; anthropicKey: string; lookupOnline: boolean; theme: ThemeName; ownerName: string; yearlyGoal: number; monthlyGoal: number; hardcoverToken: string; searchMode: SearchMode; tourDone: boolean; lastBackupAt: string; backupSnoozeUntil: string }
 const KEY = 'booktopus-settings'
-const DEFAULTS: Settings = { googleKey: '', anthropicKey: '', lookupOnline: true, theme: 'deep', ownerName: 'Toni', yearlyGoal: 24, monthlyGoal: 2, hardcoverToken: '', searchMode: 'library', tourDone: false }
+const DEFAULTS: Settings = { googleKey: '', anthropicKey: '', lookupOnline: true, theme: 'deep', ownerName: 'Toni', yearlyGoal: 24, monthlyGoal: 2, hardcoverToken: '', searchMode: 'library', tourDone: false, lastBackupAt: '', backupSnoozeUntil: '' }
 export function getSettings(): Settings {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return DEFAULTS }
 }

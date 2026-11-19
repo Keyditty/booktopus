@@ -22,7 +22,7 @@ const VIEWS: View[] = ['shelf', 'find', 'series', 'import', 'history', 'settings
 const readHash = (): View => { const h = location.hash.replace('#', ''); return h === 'library' ? 'shelf' : VIEWS.includes(h as View) ? (h as View) : 'home' }
 
 export default function App() {
-  const { data, views, loading } = useLibrary()
+  const { data, views, loading, error: storageError } = useLibrary()
   const [view, setViewState] = useState<View>(readHash())
   const [importKind, setImportKind] = useState<ImportKind>('hub')
   const [prefill, setPrefill] = useState('')
@@ -68,6 +68,15 @@ export default function App() {
   const open = openId ? views.find((v) => v.book.id === openId) : undefined
   const searching = q.trim().length > 0
   
+  if (storageError) return (
+    <div className="mx-auto mt-16 max-w-md px-4"><div className="card p-6 text-center" role="alert">
+      <div className="text-5xl" aria-hidden>🐙</div><h1 className="mt-3 text-xl font-bold">Booktopus can’t open its storage</h1>
+      <p className="serif mt-2 text-muted">Your browser is blocking the place books are saved. This usually happens in a private or incognito window, or when site storage is switched off. Open Booktopus in a normal window (on iPhone: Safari, not a private tab) and try again.</p>
+      <button className="btn btn-primary mt-4" onClick={() => location.reload()}>Try again</button>
+      <details className="mt-4 text-left text-xs text-muted"><summary className="cursor-pointer">Technical details</summary><pre className="mt-1 whitespace-pre-wrap break-words">{storageError}</pre></details>
+    </div></div>
+  )
+
   return (
     <>
       <SeaFx />

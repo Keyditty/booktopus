@@ -1,5 +1,5 @@
 import { Component, type ReactNode } from 'react'
-import { exportJson, download } from '../lib/export'
+import { downloadBackup } from '../lib/export'
 
 /** Last line of defence: if any screen throws, show a calm message instead of a blank page. The library is stored separately and stays safe. */
 export class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null; saved: boolean }> {
@@ -16,7 +16,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
           <p className="serif mt-2 text-muted">Something went wrong on this screen. <strong>Your books are safe</strong>; they’re saved separately on this device.</p>
           <div className="mt-4 flex flex-col gap-2">
             <button className="btn btn-primary" onClick={() => { location.hash = ''; this.setState({ error: null }) }}>Go back to Home</button>
-            <button className="btn btn-ghost" onClick={async () => { try { download(`booktopus-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportJson(), 'application/json'); this.setState({ saved: true }) } catch { /* ignore */ } }}>Download a backup now</button>
+            <button className="btn btn-ghost" onClick={async () => { try { await downloadBackup(); this.setState({ saved: true }) } catch { /* ignore */ } }}>Download a backup now</button>
             <button className="btn btn-ghost" onClick={() => location.reload()}>Reload the app</button>
           </div>
           {this.state.saved && <p role="status" className="mt-3 text-xs text-sage">✓ Backup downloaded.</p>}

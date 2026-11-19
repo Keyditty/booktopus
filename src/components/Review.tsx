@@ -48,10 +48,11 @@ export function Review({ candidates, books, adapter, label, notes, onDone, onCan
     setItems((xs) => xs.map((x) => (x.id === it.id ? { ...fresh, id: it.id, include: true, category: fresh.category === 'review' || fresh.category === 'unrecognized' ? 'new' : fresh.category } : x)))
   }
 
+  const [saveErr, setSaveErr] = useState('')
   async function save() {
-    setPhase('saving')
-    const b = await commitImport(items, { adapter, label })
-    setBatch(b); setPhase('done')
+    setPhase('saving'); setSaveErr('')
+    try { const b = await commitImport(items, { adapter, label }); setBatch(b); setPhase('done') }
+    catch (e) { setSaveErr(`Couldn’t save these books (${(e as Error).message}). Nothing was changed. Please try again.`); setPhase('review') }
   }
 
   if (phase === 'lookup') return (
@@ -92,6 +93,7 @@ export function Review({ candidates, books, adapter, label, notes, onDone, onCan
         <button className="btn btn-primary ml-auto" disabled={!selected || phase === 'saving'} onClick={save}>{phase === 'saving' ? 'Saving…' : `Add ${selected} book${selected === 1 ? '' : 's'}`}</button>
         <button className="text-sm text-muted underline" onClick={onCancel}>Cancel</button>
       </div>
+      {saveErr && <p role="alert" className="mt-2 text-sm text-rust">{saveErr}</p>}
       {!items.length && <p className="card mt-4 p-6 text-center text-muted">No books were found. Try a different method, or check that the text contains titles.</p>}
       {CAT_ORDER.map((cat) => {
         const rows = items.filter((i) => i.category === cat)

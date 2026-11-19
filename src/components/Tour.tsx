@@ -10,7 +10,7 @@ const STEPS: Step[] = [
   { id: 'octopus', emoji: '🐙', title: 'Meet your octopus', body: ['Eight arms hold eight books. A teal outline means Reading now. A gold dashed outline means Up next, your queue so you never forget what you meant to read.', 'Tap a free arm to give it a book. Tap a held book to start it, finish it, or free the arm.'] },
   { id: 'book', emoji: '📖', title: 'Every book has its own page', body: ['Tap any cover to mark it Reading, Finished or Didn’t finish, give it stars and a 🌶 spice level, and add genres (type your own, like Romantasy).', 'You can also see where you have it (Audible, Libby, Hoopla), write notes, and find the whole series.'] },
   { id: 'levels', emoji: '🏆', title: 'Points, levels and badges', body: ['Every finished book earns points. Levels come from books finished, climbing from 🦠 Plankton up to the 🦑 Kraken at 1,000 books: 10, 25, 50, 100, 250, 500, then 1,000.', 'Set yearly and monthly goals in Settings and keep your streak going.'] },
-  { id: 'menu', emoji: '⚙️', title: 'Settings and backup', target: 'menu', body: ['Open the ⋯ menu for Settings: download a backup, switch colors, set your name and goals, and connect optional extras.', 'Your library lives only on this device, so download a backup now and then.'] },
+  { id: 'menu', emoji: '⚙️', title: 'Settings and backup', target: 'menu', body: ['Open the ⋯ menu for Settings: download a backup, switch colors, set your name and goals, and connect optional extras.', 'Your library lives only on this device. On an iPhone, tap Share, then “Add to Home Screen” so Safari keeps it safe, and download a backup now and then.'] },
   { id: 'done', emoji: '🎉', title: 'You’re all set', body: ['Ready to fill your shelf? Add your first books, or just look around.'] },
 ]
 

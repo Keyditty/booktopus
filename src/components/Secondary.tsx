@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { download, eraseAll, exportCsv, exportJson, restoreJson } from '../lib/export'
+import { download, downloadBackup, eraseAll, exportCsv, restoreJson } from '../lib/export'
 import { Portal } from './Portal'
 import { getSettings, saveSettings, type ThemeName } from '../lib/settings'
 import { undoBatch } from '../lib/store'
@@ -20,7 +20,7 @@ export function EraseDialog({ count, onClose }: { count: number; onClose: () => 
           <p id="erase-desc" className="mt-2 text-sm">This permanently deletes all <strong>{count} books</strong>, your ratings, notes, dates, octopus arms, points and import history from this device. <strong>This cannot be undone.</strong> Your goals, name and settings are kept.</p>
           <div className="mt-4 rounded-xl bg-mist p-3 text-sm">
             <p className="font-semibold">Strongly recommended: save a backup first.</p>
-            <button className="btn btn-primary mt-2 !min-h-10 text-sm" onClick={async () => { download(`booktopus-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportJson(), 'application/json'); setSaved(true) }}>Download backup (JSON)</button>
+            <button className="btn btn-primary mt-2 !min-h-10 text-sm" onClick={async () => { await downloadBackup(); setSaved(true) }}>Download backup (JSON)</button>
             {saved && <p role="status" className="mt-2 text-xs text-sage">✓ Backup downloaded. Keep that file somewhere safe.</p>}
           </div>
           <label className="mt-4 block text-sm font-semibold" htmlFor="erase-confirm">Type <span className="font-mono text-rust">ERASE</span> to confirm</label>
@@ -92,7 +92,7 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
         <h3 className="text-lg font-bold">Your data</h3>
         <p className="mt-1 text-sm text-muted">Your library is stored privately in this browser on this device. {bookCount} books. To use it on your phone <em>and</em> computer, export a backup here and restore it on the other device.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn btn-primary" onClick={async () => download(`booktopus-backup-${stamp}.json`, await exportJson(), 'application/json')}>Download backup (JSON)</button>
+          <button className="btn btn-primary" onClick={() => downloadBackup()}>Download backup (JSON)</button>
           <button className="btn btn-ghost" onClick={async () => download(`booktopus-${stamp}.csv`, await exportCsv(), 'text/csv')}>Export spreadsheet (CSV)</button>
           <input ref={fileRef} hidden type="file" accept=".json,application/json" onChange={async (e) => {
             const f = e.target.files?.[0]; if (!f) return

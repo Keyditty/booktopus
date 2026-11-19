@@ -66,7 +66,21 @@ src/components/      shelf, details, import flow, review
 samples/             try-me files (ChatGPT chat, Libby CSV)
 ```
 
+## Privacy, data and safety
+- **Your library never leaves the device.** There is no server and no account. Books, ratings, notes and settings are stored in the browser (IndexedDB / localStorage).
+- **What is sent out, and to whom:**
+  - Cover/description lookups send only the title/author/ISBN you typed or imported to Google Books and Open Library.
+  - Series lookups send a title/author or series name to Inventaire, and to Hardcover only if a token is saved.
+  - Optional AI vision sends the chosen screenshots to Anthropic, only with the user's own key and an explicit per-batch tick.
+  - The page loads two fonts from Google Fonts (which reveals the visitor's IP address to Google, like any web font).
+  - Screenshots are read on the device by OCR (the OCR engine and language data are served from this site) and are never stored.
+- **API keys/tokens** (Google, Hardcover, Anthropic) are kept only in this browser's localStorage and are only sent to their own service. Anyone with access to the unlocked device could read them, so use keys you can revoke.
+- **Content Security Policy:** the built site restricts scripts to its own files and network calls to the book services listed above.
+- **Backups matter.** Clearing site data, or (on iPhone) not visiting a Safari tab for about a week, can erase a web page's saved data. Add the site to the Home Screen and use Settings → Download backup (the app reminds you every 30 days). Restoring validates the file and skips anything unreadable.
+- Reviewed with: unit tests (75), three browser suites, a large-library timing test (1,500 books), `npm audit` (0 findings), a source scan for unsafe patterns (none), and OCR under the CSP.
+
 ## Known limits
+- Tested in Chromium at phone size and desktop, not on a physical iPhone/Safari.
 - Data lives in this browser. Phone ↔ computer needs Backup → Restore (no automatic sync; a hosted backend would be a future phase).
 - OCR works best on list-style screens (title + author text). Cover-only grids rely on whatever text is on the covers; unsure ones are flagged for review.
 - Audible/Hoopla/Libby formats were not verifiable from the build environment; parsers are tolerant but may need tuning against real files.

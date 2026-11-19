@@ -24,8 +24,17 @@ export function splitTitle(raw: string): { title: string; subtitle?: string; ser
   return { title: t, series, seriesNumber }
 }
 
-/** Matching key for a title: ignores case, accents, punctuation, subtitle, leading article, edition noise. */
+const normCache = new Map<string, string>()
+/** Matching key for a title: ignores case, accents, punctuation, subtitle, leading article, edition noise. (Memoized: it's called millions of times when comparing a big import to a big library.) */
 export function normTitle(raw: string): string {
+  const hit = normCache.get(raw)
+  if (hit !== undefined) return hit
+  const out = normTitleUncached(raw)
+  if (normCache.size > 50000) normCache.clear()
+  normCache.set(raw, out)
+  return out
+}
+function normTitleUncached(raw: string): string {
   let t = stripDiacritics(raw).toLowerCase()
   t = t.replace(/[(\[][^)\]]*[)\]]/g, ' ')
   const colon = t.indexOf(':')
@@ -83,10 +92,35 @@ function levenshtein(a: string, b: string): number {
   return prev[n]
 }
 
+const histCache = new Map<string, Int16Array>()
+function hist(s: string): Int16Array {
+  let h = histCache.get(s)
+  if (!h) {
+    h = new Int16Array(37)
+    for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h[c >= 97 && c <= 122 ? c - 97 : c >= 48 && c <= 57 ? 26 + c - 48 : 36]++ }
+    if (histCache.size > 50000) histCache.clear()
+    histCache.set(s, h)
+  }
+  return h
+}
+
+/**
+ * 1 = identical, 0 = nothing alike. Cheap lower bounds on the edit distance (length difference, and letter-count difference: one edit
+ * changes the letter counts by at most 2) let us skip the full calculation for pairs that cannot possibly score 0.6 or more,
+ * which is what keeps a big import against a big library fast. Below 0.6 the exact value is not meaningful to any caller.
+ */
 export function similarity(a: string, b: string): number {
   if (!a || !b) return 0
   if (a === b) return 1
-  return 1 - levenshtein(a, b) / Math.max(a.length, b.length)
+  const max = Math.max(a.length, b.length)
+  const lenBound = 1 - Math.abs(a.length - b.length) / max
+  if (lenBound < 0.6) return lenBound
+  const ha = hist(a), hb = hist(b)
+  let diff = 0
+  for (let i = 0; i < 37; i++) diff += Math.abs(ha[i] - hb[i])
+  const histBound = 1 - Math.ceil(diff / 2) / max
+  if (histBound < 0.6) return histBound
+  return 1 - levenshtein(a, b) / max
 }
 
 const ROMAN: Record<string, string> = { i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10' }
@@ -95,10 +129,17 @@ export function numberTokens(norm: string): string[] {
   return norm.split(' ').map((w) => (/^\d+$/.test(w) ? w : ROMAN[w] && norm.split(' ').length > 1 ? ROMAN[w] : '')).filter(Boolean)
 }
 
+const numCache = new Map<string, string>()
+const numKey = (norm: string) => {
+  let k = numCache.get(norm)
+  if (k === undefined) { k = numberTokens(norm).join(','); if (numCache.size > 50000) numCache.clear(); numCache.set(norm, k) }
+  return k
+}
+
 export function titleSimilarity(a: string, b: string): number {
   const na = normTitle(a), nb = normTitle(b)
-  const da = numberTokens(na).join(','), db = numberTokens(nb).join(',')
-  if (da !== db) return Math.min(0.5, similarity(na, nb)) // "Book 2" vs "Book 3": never a match
+  if (na === nb) return numKey(na) === numKey(nb) ? 1 : 0.5
+  if (numKey(na) !== numKey(nb)) return Math.min(0.5, similarity(na, nb)) // "Book 2" vs "Book 3": never a match
   return similarity(na, nb)
 }
 
