@@ -12,7 +12,7 @@ and your reading history never leaves your device.
 - **First-run tour**: a 9-step walkthrough on first open (replay from the ⋯ menu or Settings). A fresh install starts empty; sample books are only in Settings → "Add sample books".
 - **Series tracker** (🔗 Series tab + a "Keep going" row on Home): every series you're in, progress dots, what's next (even if you don't own it yet), one-tap Start reading / Up next / Want to read. Series info is saved from lookups, from typing it on a book, or by one "Check my shelf" button.
 - **Edit where a book lives**: change service/format/status per copy, add another place ("also on Libby"), or remove one.
-- **Two searches**: 📚 My library vs 🌐 Find any book (title, author or ISBN; add to Want to Read, mark "I have it", see the whole series).
+- **Two searches**: 📚 My library vs 🌐 Find any book (title, author or ISBN; ranks the author you mean first even if you misspell the first name, e.g. Steven/Stephen; All / Title / Author switch; "Looking for an author?" suggestions; add to Want to Read, mark "I have it", see the whole series).
 - **Series lookup (experimental)**: every book in a series via Hardcover (free token) or Inventaire (no key), with "Test connection" buttons in Settings.
 - **Spice level** 🌶 0-5 per book, shown on the cover, filterable, in the CSV export.
 - **Find more to read** (Reef tab): type any author, genre/mood ("romantasy", "spicy fantasy") or a book you loved, or tap one of your own genres, to get web-search links and in-app ideas you can add to Want to Read. Suggestions from your shelf appear below.
@@ -42,7 +42,7 @@ npm run build      # outputs dist/
 ```
 Node 20+ required. The site also loads two Google Fonts (Cinzel, Alegreya) and falls back to system serif fonts offline. `npm run dev/build` first copies the OCR engine + English data into `public/ocr` (git-ignored) so OCR is self-hosted.
 
-Browser smoke tests (optional, need Playwright): `e2e/smoke.cjs`, `e2e/features.cjs`, `e2e/reef.cjs` and `e2e/ideas.cjs`.
+Browser smoke tests (optional, need Playwright): `e2e/smoke.cjs`, `e2e/features.cjs`, `e2e/reef.cjs`, `e2e/ideas.cjs`, `e2e/token.cjs` and `e2e/find.cjs`.
 
 ## Deploy to GitHub Pages
 1. Push to `main`. In the repo: **Settings → Pages → Source: GitHub Actions**.

@@ -121,7 +121,7 @@ export default function App() {
           </main>
         )}
 
-        {view === 'find' && <main className="mt-5"><FindBooks q={q} books={data?.books ?? []} onOpen={(id) => setOpenId(id)} /></main>}
+        {view === 'find' && <main className="mt-5"><FindBooks q={q} books={data?.books ?? []} onOpen={(id) => setOpenId(id)} onQuery={setQ} /></main>}
 
         {view === 'series' && <main className="mt-5"><SeriesView books={data?.books ?? []} onOpen={(id) => setOpenId(id)} /></main>}
 

@@ -1,26 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { SeriesSheet } from './SeriesSheet'
-import { searchBooks, type Meta } from '../lib/metadata'
+import { searchAuthors, searchBooks, type FindMode, type Meta } from '../lib/metadata'
 import { addMeta, googleUrl } from '../lib/discover'
 import { AUTO_MERGE, bestMatch } from '../lib/match'
 import type { Book } from '../types'
 
 /** "Find books": look up any book in the world (title, author or ISBN), then add it, see its series, or search the web. */
-export function FindBooks({ q, books, onOpen }: { q: string; books: Book[]; onOpen: (id: string) => void }) {
+export function FindBooks({ q, books, onOpen, onQuery }: { q: string; books: Book[]; onOpen: (id: string) => void; onQuery: (q: string) => void }) {
   const [res, setRes] = useState<Meta[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [added, setAdded] = useState<Record<string, 'want' | 'own'>>({})
   const [series, setSeries] = useState<Meta | null>(null)
+  const [mode, setMode] = useState<FindMode>('all')
+  const [authors, setAuthors] = useState<{ name: string; works: number; topWork?: string }[]>([])
   const query = q.trim()
 
   useEffect(() => {
     if (query.length < 2) { setRes(null); return }
     setBusy(true)
     let on = true
-    const t = setTimeout(async () => { const r = await searchBooks(query, 18); if (on) { setRes(r); setBusy(false) } }, 500)
+    const t = setTimeout(async () => {
+      const [r, a] = await Promise.all([searchBooks(query, 18, mode), mode === 'title' ? Promise.resolve([]) : searchAuthors(query)])
+      if (on) { setRes(r); setAuthors(a); setBusy(false) }
+    }, 500)
     return () => { on = false; clearTimeout(t) }
-  }, [query])
+  }, [query, mode])
 
   const rows = useMemo(() => (res ?? []).map((m) => { const hit = bestMatch({ title: m.title, authors: m.authors, identifiers: m.identifiers }, books); return { m, owned: hit && hit.score >= AUTO_MERGE ? (hit.item as Book) : undefined } }), [res, books])
   const key = (m: Meta) => m.title + '|' + m.authors[0]
@@ -29,6 +34,15 @@ export function FindBooks({ q, books, onOpen }: { q: string; books: Book[]; onOp
     <div className="mx-auto max-w-2xl fade-in">
       <h2 className="text-xl font-bold">Find books</h2>
       <p className="text-sm text-muted">Searching every book, not just yours. Try a title, an author, or an ISBN.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Search by">
+        {([['all', 'All'], ['title', 'Title'], ['author', 'Author']] as const).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={mode === k} onClick={() => setMode(k)} className={`btn !min-h-9 !px-4 !py-1 text-sm ${mode === k ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>)}
+      </div>
+      {authors.length > 0 && query.length >= 3 && (
+        <div className="mt-3" aria-label="Did you mean an author?"><span className="text-xs text-muted">Looking for an author?</span>
+          <div className="mt-1 flex flex-wrap gap-1.5">{authors.map((a) => (
+            <button key={a.name} type="button" className="rounded-full border border-line px-3 py-1 text-xs hover:bg-mist" onClick={() => { setMode('author'); onQuery(a.name) }} title={a.topWork ? `Best known for ${a.topWork}` : undefined}>
+              {a.name}{a.works ? <span className="text-muted"> · {a.works.toLocaleString()} works</span> : null}</button>))}</div></div>
+      )}
       {query.length < 2 && <p className="card mt-6 p-6 text-center text-muted">Type at least two letters above to search.</p>}
       {busy && <p className="mt-6 text-center text-muted">Searching…</p>}
       {!busy && res && !res.length && (
