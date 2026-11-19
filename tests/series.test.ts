@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { findSeries, hardcoverSeries, inventaireSeries, testHardcover } from '../src/lib/series'
+import { cleanToken, findSeries, friendlyHardcoverError, hardcoverSeries, inventaireSeries, testHardcover } from '../src/lib/series'
 
 /* These tests use FAKE responses shaped like what the docs/search summaries describe. They prove the code copes with that shape
    and falls back sensibly. They do NOT prove the real services return that shape; that is what the Settings "Test connection" buttons are for. */
@@ -38,7 +38,31 @@ describe('Hardcover series (fake responses)', () => {
   it('accepts a token that already starts with Bearer, and reports API errors readably', async () => {
     globalThis.fetch = (async (_u: string, init?: RequestInit) => { expect((init!.headers as Record<string, string>).authorization).toBe('Bearer zzz'); return json({ errors: [{ message: 'Invalid token' }] }) }) as typeof fetch
     const t = await testHardcover('Bearer zzz')
-    expect(t.ok).toBe(false); expect(t.message).toBe('Invalid token')
+    expect(t.ok).toBe(false); expect(t.message).toContain('Invalid token'); expect(t.message).toContain('didn’t accept this token')
+  })
+})
+
+describe('pasted Hardcover tokens (the phone paste problem)', () => {
+  it('cleans line breaks, spaces, invisible characters, quotes and a pasted "Bearer "', () => {
+    expect(cleanToken('  Bearer abc.def\n.ghi \u200B ')).toBe('abc.def.ghi')
+    expect(cleanToken('“abc def”')).toBe('abcdef')
+    expect(cleanToken('abc\u00A0def\r\nxyz')).toBe('abcdefxyz')
+  })
+  it('the test checks book data, so a token that cannot read account details still passes', async () => {
+    globalThis.fetch = (async (_u: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body))
+      expect((init!.headers as Record<string, string>).authorization).toBe('Bearer abc.def')
+      if (body.query.includes('me {')) return json({ errors: [{ message: 'insufficient_scope' }] })
+      return json({ data: { series: [{ id: 1, name: 'Dune' }] } })
+    }) as typeof fetch
+    const t = await testHardcover('abc.\ndef')
+    expect(t.ok).toBe(true); expect(t.message).toContain('Connected'); expect(t.message).toContain('token length 7')
+  })
+  it('explains insufficient_scope in plain English when book data is blocked too', async () => {
+    globalThis.fetch = (async () => json({ errors: [{ message: 'insufficient_scope' }] })) as typeof fetch
+    const t = await testHardcover('abcdef')
+    expect(t.ok).toBe(false); expect(t.message).toContain('fresh token'); expect(t.message).toContain('insufficient_scope')
+    expect(friendlyHardcoverError('something odd')).toBe('something odd')
   })
 })
 

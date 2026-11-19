@@ -4,7 +4,7 @@ import { Portal } from './Portal'
 import { getSettings, saveSettings, type ThemeName } from '../lib/settings'
 import { undoBatch } from '../lib/store'
 import { loadSampleBooks } from '../lib/sample'
-import { testHardcover, testInventaire, type TestOutcome } from '../lib/series'
+import { cleanToken, testHardcover, testInventaire, type TestOutcome } from '../lib/series'
 import { VISION_MODEL } from '../lib/settings'
 import type { ImportBatch } from '../types'
 
@@ -61,6 +61,7 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const [erasing, setErasing] = useState(false)
+  const [showHc, setShowHc] = useState(false)
   const [tests, setTests] = useState<Record<string, TestOutcome | 'running'>>({})
   const runTest = async (id: string, fn: () => Promise<TestOutcome>) => { setTests((t) => ({ ...t, [id]: 'running' })); const r = await fn(); setTests((t) => ({ ...t, [id]: r })) }
   const TestLine = ({ id }: { id: string }) => { const t = tests[id]; return t ? <p role="status" className={`mt-2 text-sm ${t === 'running' ? 'text-muted' : t.ok ? 'text-sage' : 'text-rust'}`}>{t === 'running' ? 'Testing…' : `${t.ok ? '✓' : '✗'} ${t.message}${t.ms ? ` (${t.ms} ms)` : ''}`}</p> : null }
@@ -113,8 +114,13 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
       <section className="card p-5">
         <h3 className="text-lg font-bold">Series & universe lookups <span className="ml-1 rounded-full bg-gold px-2 py-0.5 align-middle text-[10px] font-bold uppercase text-[#2b1d12]">Experimental</span></h3>
         <p className="mt-1 text-sm text-muted">Shows every book in a series (open any book and tap “See the whole series”). Inventaire needs nothing. Hardcover is better for new popular books and needs a free token from hardcover.app/account/api. These haven’t been tested against the live services yet, so use the test buttons.</p>
-        <label className="mt-3 block text-xs font-semibold text-muted" htmlFor="hc-token">Hardcover token (optional)
-          <input id="hc-token" className="field mt-1 font-normal text-ink" type="password" autoComplete="off" value={s.hardcoverToken} onChange={(e) => upd({ hardcoverToken: e.target.value })} /></label>
+        <label className="mt-3 block text-xs font-semibold text-muted" htmlFor="hc-token">Hardcover token (optional)</label>
+        <div className="mt-1 flex gap-2">
+          <input id="hc-token" className="field font-normal text-ink" type={showHc ? 'text' : 'password'} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} value={s.hardcoverToken}
+            onChange={(e) => upd({ hardcoverToken: e.target.value })} onBlur={(e) => { const c = cleanToken(e.target.value); if (c !== e.target.value) upd({ hardcoverToken: c }) }} />
+          <button type="button" className="btn btn-ghost !min-h-11 !px-3 text-sm" onClick={() => setShowHc(!showHc)} aria-pressed={showHc}>{showHc ? 'Hide' : 'Show'}</button>
+        </div>
+        <p className="mt-1 text-xs text-muted">{cleanToken(s.hardcoverToken) ? `${cleanToken(s.hardcoverToken).length} characters saved. Spaces and line breaks from pasting are removed automatically.` : 'Nothing saved yet.'}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button className="btn btn-ghost !min-h-10 text-sm" onClick={() => runTest('hc', () => testHardcover(s.hardcoverToken))}>Test Hardcover</button>
           <button className="btn btn-ghost !min-h-10 text-sm" onClick={() => runTest('inv', testInventaire)}>Test Inventaire</button>

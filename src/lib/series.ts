@@ -34,7 +34,21 @@ async function fetchJson(url: string, init?: RequestInit, ms = 12000): Promise<a
 
 /* ---------------- Hardcover ---------------- */
 const HC_URL = 'https://api.hardcover.app/v1/graphql'
-const bearer = (token: string) => (/^bearer\s/i.test(token.trim()) ? token.trim() : `Bearer ${token.trim()}`)
+/**
+ * Pasted tokens often arrive damaged, especially from a phone: line breaks, spaces, invisible characters, wrapping quotes, or the "Bearer " word.
+ * Strip all of that so the token that is sent is exactly the token that was copied.
+ */
+export function cleanToken(raw: string): string {
+  return raw.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ').trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').replace(/^bearer\s+/i, '').replace(/\s+/g, '')
+}
+const bearer = (token: string) => `Bearer ${cleanToken(token)}`
+
+/** Turn Hardcover's terse error codes into something a reader can act on (the raw text is kept in brackets for troubleshooting). */
+export function friendlyHardcoverError(msg: string): string {
+  if (/insufficient_scope/i.test(msg)) return `Hardcover accepted this token but says it isn’t allowed to read this data. Make a fresh token at hardcover.app/account/api and paste the whole thing again (${msg})`
+  if (/invalid|jwt|unauthor|401|expired|malformed/i.test(msg)) return `Hardcover didn’t accept this token. Check that all of it was pasted (no gaps), or make a new one at hardcover.app/account/api (${msg})`
+  return msg
+}
 
 async function hcQuery(token: string, query: string, variables: Record<string, unknown> = {}): Promise<any> {
   const d = await fetchJson(HC_URL, { method: 'POST', headers: { 'content-type': 'application/json', authorization: bearer(token) }, body: JSON.stringify({ query, variables }) })
@@ -151,7 +165,7 @@ export async function findSeries(q: SeriesQuery): Promise<FindSeriesOutcome> {
   const token = getSettings().hardcoverToken
   if (token) {
     try { const r = await hardcoverSeries(q, token); if (r) { await cacheSeries(r, [q.series ?? '']); return { result: r, notes } }; notes.push('Hardcover had no series for this book.') }
-    catch (e) { notes.push(`Hardcover: ${(e as Error).message}.`) }
+    catch (e) { notes.push(`Hardcover: ${friendlyHardcoverError((e as Error).message)}.`) }
   }
   try { const r = await inventaireSeries(q); if (r) { await cacheSeries(r, [q.series ?? '']); return { result: r, notes } }; notes.push('Inventaire had no series for this book.') }
   catch (e) { notes.push(`Inventaire: ${(e as Error).message}.`) }
@@ -162,12 +176,15 @@ export async function findSeries(q: SeriesQuery): Promise<FindSeriesOutcome> {
 export interface TestOutcome { ok: boolean; message: string; ms: number }
 export async function testHardcover(token: string): Promise<TestOutcome> {
   const t0 = Date.now()
-  if (!token.trim()) return { ok: false, message: 'Paste your Hardcover token first.', ms: 0 }
+  const clean = cleanToken(token)
+  if (!clean) return { ok: false, message: 'Paste your Hardcover token first.', ms: 0 }
   try {
-    const d = await hcQuery(token, 'query { me { username } }')
-    const me = Array.isArray(d?.me) ? d.me[0] : d?.me
-    return { ok: true, message: `Connected${me?.username ? ` as ${me.username}` : ''}.`, ms: Date.now() - t0 }
-  } catch (e) { return { ok: false, message: (e as Error).message, ms: Date.now() - t0 } }
+    // test what the app actually needs (reading book/series data), not account details, which some tokens aren't allowed to read
+    await hcQuery(token, 'query { series(limit: 1, where: { name: { _eq: "Dune" } }) { id name } }')
+    let who = ''
+    try { const d = await hcQuery(token, 'query { me { username } }'); const me = Array.isArray(d?.me) ? d.me[0] : d?.me; if (me?.username) who = ` as ${me.username}` } catch { /* account details are optional */ }
+    return { ok: true, message: `Connected${who}. Series lookups will use Hardcover. (token length ${clean.length})`, ms: Date.now() - t0 }
+  } catch (e) { return { ok: false, message: `${friendlyHardcoverError((e as Error).message)} (token length ${clean.length})`, ms: Date.now() - t0 } }
 }
 export async function testInventaire(): Promise<TestOutcome> {
   const t0 = Date.now()
