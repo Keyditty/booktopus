@@ -288,6 +288,36 @@ export async function deleteBook(id: string) {
   notify()
 }
 
+/** Change where a copy lives (service / format / status there). Keeps the idempotency key in sync so re-imports don't duplicate it. */
+export async function updateSource(id: string, patch: Partial<Pick<SourceRecord, 'source' | 'format' | 'activity' | 'library'>>) {
+  const rec = await db.sources.get(id)
+  if (!rec) return
+  const book = await db.books.get(rec.bookId)
+  Object.assign(rec, patch)
+  if (book) rec.key = `${rec.source}|${rec.format}|${rec.sourceId || bookKeyOf(book.title, book.authors)}`
+  const dup = await db.sources.where('key').equals(rec.key).and((r) => r.bookId === rec.bookId && r.id !== id).first()
+  if (dup) { await db.events.where('sourceRecordId').equals(id).modify({ sourceRecordId: dup.id }); await db.sources.delete(id) } // two copies became identical: merge them
+  else await db.sources.put(rec)
+  notify()
+}
+
+/** "I also have it on Libby": add another place a book lives. */
+export async function addSource(bookId: string, p: { source: SourceRecord['source']; format: SourceRecord['format']; activity?: SourceActivity }): Promise<boolean> {
+  const book = await db.books.get(bookId)
+  if (!book) return false
+  const key = `${p.source}|${p.format}|${bookKeyOf(book.title, book.authors)}`
+  if (await db.sources.where('key').equals(key).and((r) => r.bookId === bookId).first()) return false
+  await db.sources.add({ id: newId(), bookId, key, source: p.source, format: p.format, activity: p.activity ?? 'unknown', provenance: 'Added by hand', batchId: 'manual-edit', addedAt: now() })
+  notify()
+  return true
+}
+
+export async function deleteSource(id: string) {
+  await db.events.where('sourceRecordId').equals(id).delete()
+  await db.sources.delete(id)
+  notify()
+}
+
 export async function mergeBooks(keepId: string, otherId: string) {
   if (keepId === otherId) return
   await db.transaction('rw', [db.books, db.sources, db.events], async () => {
@@ -328,3 +358,16 @@ export async function splitSource(recordId: string) {
 }
 
 export const stableHash = hashStr
+
+/** After a series lookup: tag shelf books that belong to the series (only fills blanks; never overwrites what she typed). Returns how many were tagged. */
+export async function tagSeries(items: { bookId: string; series: string; seriesNumber?: number }[]): Promise<number> {
+  let n = 0
+  for (const it of items) {
+    const b = await db.books.get(it.bookId)
+    if (!b || b.series) continue
+    await db.books.update(it.bookId, { series: it.series, seriesNumber: b.seriesNumber ?? it.seriesNumber, updatedAt: now() })
+    n++
+  }
+  if (n) notify()
+  return n
+}

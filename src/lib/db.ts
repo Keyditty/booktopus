@@ -24,6 +24,8 @@ export class ShelfDB extends Dexie {
       batches: 'id, createdAt',
       cache: 'key',
     })
+    // v2: index events by the copy they belong to (needed to move/delete a copy's history). Existing data is kept.
+    this.version(2).stores({ events: 'id, bookId, key, batchId, sourceRecordId' })
   }
 }
 

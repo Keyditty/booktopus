@@ -80,7 +80,7 @@ export function distinct(views: BookView[], pick: (v: BookView) => (string | und
   return [...new Set(views.flatMap(pick).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b))
 }
 
-export const SERVICE_LABEL: Record<SourceName, string> = { audible: 'Audible', libby: 'Libby', hoopla: 'Hoopla', chatgpt: 'My list', screenshot: 'Screenshot', manual: 'Added by hand', other: 'Other' }
+export const SERVICE_LABEL: Record<SourceName, string> = { audible: 'Audible', libby: 'Libby', hoopla: 'Hoopla', chatgpt: 'My list', screenshot: 'Screenshot', manual: 'Own copy', other: 'Other' }
 export const SERVICE_COLOR: Record<SourceName, string> = { audible: '#e8892b', libby: '#c8372d', hoopla: '#2f7bd6', chatgpt: '#6b8f71', screenshot: '#7a6a9a', manual: '#9bb5c0', other: '#9bb5c0' }
 export const STATUS_LABEL = { unknown: 'Not marked', not_started: 'Not started', in_progress: 'Reading', finished: 'Finished', dnf: 'Did not finish' } as const
 export const FORMAT_LABEL: Record<Format, string> = { audiobook: 'Audiobook', ebook: 'Ebook', print: 'Print', comic: 'Comic / graphic novel', unknown: 'Unknown' }

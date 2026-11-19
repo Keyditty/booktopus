@@ -1,3 +1,4 @@
+import { db } from './db'
 import { getSettings } from './settings'
 import { normTitle, similarity } from './normalize'
 
@@ -110,6 +111,11 @@ export async function inventaireSeries(q: SeriesQuery): Promise<SeriesResult | n
     const claim = e?.claims?.['wdt:P179']?.[0]
     if (!claim) return null
     seriesUri = String(claim)
+    // the work only tells us the series' address; fetch its label so the series gets its real name
+    try {
+      const se = await fetchJson(`${INV}/entities?action=by-uris&uris=${encodeURIComponent(seriesUri)}`)
+      seriesName = invLabel(se?.entities?.[seriesUri]) || undefined
+    } catch { /* keep going; we'll fall back to a generic name */ }
   }
   const parts = await fetchJson(`${INV}/entities?action=series-parts&uri=${encodeURIComponent(seriesUri)}`)
   const list: any[] = parts?.parts ?? []
@@ -122,18 +128,29 @@ export async function inventaireSeries(q: SeriesQuery): Promise<SeriesResult | n
     return { position: Number.isFinite(ord) ? ord : undefined, title: invLabel(e) || String(p.uri), authors: [], year: undefined, coverUrl: e?.image?.url ? (String(e.image.url).startsWith('http') ? e.image.url : `https://inventaire.io${e.image.url}`) : undefined }
   }).filter((b) => b.title && !b.title.startsWith('wd:') && !b.title.startsWith('inv:'))
     .sort((a, b) => (a.position ?? 1e9) - (b.position ?? 1e9))
-  return books.length ? { name: seriesName ?? q.series ?? q.title, provider: 'inventaire', books } : null
+  return books.length ? { name: seriesName ?? q.series ?? `${q.title} series`, provider: 'inventaire', books } : null
+}
+
+/* ---------------- cache (so the tracker doesn't hit the network every time) ---------------- */
+const seriesKey = (name: string) => `series:${normTitle(name).replace(/\b(series|trilogy|saga|chronicles)\b/g, '').replace(/\s+/g, ' ').trim()}`
+export async function cachedSeries(name: string): Promise<SeriesResult | null> {
+  const row = await db.cache.get(seriesKey(name))
+  return row && Date.now() - row.at < 30 * 86400_000 ? (row.value as SeriesResult) : null
+}
+export async function cacheSeries(result: SeriesResult, alsoAs: string[] = []) {
+  for (const n of [result.name, ...alsoAs]) if (n) await db.cache.put({ key: seriesKey(n), value: result, at: Date.now() })
 }
 
 /** Try Hardcover first (if a token is saved), then Inventaire. Returns readable notes about what happened. */
 export async function findSeries(q: SeriesQuery): Promise<FindSeriesOutcome> {
   const notes: string[] = []
+  if (q.series?.trim()) { const hit = await cachedSeries(q.series); if (hit) return { result: hit, notes } } // saved earlier: no network needed
   const token = getSettings().hardcoverToken
   if (token) {
-    try { const r = await hardcoverSeries(q, token); if (r) return { result: r, notes }; notes.push('Hardcover had no series for this book.') }
+    try { const r = await hardcoverSeries(q, token); if (r) { await cacheSeries(r, [q.series ?? '']); return { result: r, notes } }; notes.push('Hardcover had no series for this book.') }
     catch (e) { notes.push(`Hardcover: ${(e as Error).message}.`) }
   }
-  try { const r = await inventaireSeries(q); if (r) return { result: r, notes }; notes.push('Inventaire had no series for this book.') }
+  try { const r = await inventaireSeries(q); if (r) { await cacheSeries(r, [q.series ?? '']); return { result: r, notes } }; notes.push('Inventaire had no series for this book.') }
   catch (e) { notes.push(`Inventaire: ${(e as Error).message}.`) }
   return { result: null, notes }
 }

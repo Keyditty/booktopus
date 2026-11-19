@@ -54,6 +54,20 @@ describe('Inventaire series (fake responses)', () => {
   })
 })
 
+describe('Inventaire: series found through a book gets its real name', () => {
+  it('reads the work\'s series claim, then the series label', async () => {
+    globalThis.fetch = (async (u: string) => {
+      if (u.includes('types=works')) return json({ results: [{ id: 'Q2', uri: 'wd:Q2', label: 'Fourth Wing' }] })
+      if (u.includes('series-parts')) return json({ parts: [{ uri: 'wd:Q2', ordinal: '1' }, { uri: 'wd:Q3', ordinal: '2' }] })
+      if (decodeURIComponent(u).includes('uris=wd:Q2|')) return json({ entities: { 'wd:Q2': { labels: { en: 'Fourth Wing' } }, 'wd:Q3': { labels: { en: 'Iron Flame' } } } })
+      if (decodeURIComponent(u).endsWith('uris=wd:Q2')) return json({ entities: { 'wd:Q2': { claims: { 'wdt:P179': ['wd:Q1'] } } } })
+      return json({ entities: { 'wd:Q1': { labels: { en: 'The Empyrean' } } } })
+    }) as typeof fetch
+    const r = (await inventaireSeries({ title: 'Fourth Wing', author: 'Rebecca Yarros' }))!
+    expect(r.name).toBe('The Empyrean'); expect(r.books.map((b) => b.title)).toEqual(['Fourth Wing', 'Iron Flame'])
+  })
+})
+
 describe('findSeries fallback', () => {
   it('skips Hardcover without a token, tries Inventaire, and reports why nothing was found', async () => {
     globalThis.fetch = (async () => json({ results: [] })) as typeof fetch

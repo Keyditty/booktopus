@@ -3,12 +3,11 @@ import { Cover } from './Cover'
 import { GenrePicker } from './GenrePicker'
 import { SpiceInput } from './SpiceInput'
 import { SeriesSheet } from './SeriesSheet'
-import { deleteBook, mergeBooks, placeOnArm, readAgain, removeFromArm, setStatus, splitSource, updateBook } from '../lib/store'
+import { Sources } from './Sources'
+import { deleteBook, mergeBooks, placeOnArm, readAgain, removeFromArm, setStatus, updateBook } from '../lib/store'
 import { assignArms, armMode } from '../lib/arms'
-import { FORMAT_LABEL, SERVICE_COLOR, SERVICE_LABEL, STATUS_LABEL, type BookView } from '../lib/shelves'
+import { FORMAT_LABEL, STATUS_LABEL, type BookView } from '../lib/shelves'
 import type { ActivityEvent, Book } from '../types'
-
-const ACTIVITY_LABEL = { purchased: 'Purchased', borrowed: 'Borrowed', returned: 'Returned', hold: 'On hold', available: 'Available', unknown: 'In library' } as const
 
 export function BookDetail({ v, all, events, onClose }: { v: BookView; all: BookView[]; events: ActivityEvent[]; onClose: () => void }) {
   const b = v.book
@@ -101,29 +100,9 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
 
           {b.synopsis && <section className="mt-6"><h3 className="text-sm font-bold uppercase tracking-wide text-muted">About this book</h3><p className="serif mt-1 leading-relaxed">{b.synopsis}</p></section>}
 
-          <section className="mt-6">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Where you have it</h3>
-            <ul className="mt-2 space-y-2">
-              {v.sources.map((s) => {
-                const evs = events.filter((e) => e.sourceRecordId === s.id && e.date).sort((a, c) => a.date!.localeCompare(c.date!))
-                return (
-                  <li key={s.id} className="card p-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ background: SERVICE_COLOR[s.source] }} />
-                      <strong>{SERVICE_LABEL[s.source]}</strong><span className="text-muted">· {FORMAT_LABEL[s.format]} · {ACTIVITY_LABEL[s.activity]}</span>
-                      {v.sources.length > 1 && <button className="ml-auto text-xs text-rust underline" title="Move this copy to its own book" onClick={() => confirm('Treat this copy as a different book?') && splitSource(s.id)}>Not the same book</button>}
-                    </div>
-                    {s.library && <div className="mt-1 text-xs text-muted">{s.library}</div>}
-                    {evs.length > 0 && <div className="mt-1 text-xs text-muted">{evs.map((e) => `${e.type} ${e.date}`).join(' · ')}</div>}
-                    <div className="mt-1 text-[11px] text-muted/80">Imported from: {s.provenance}</div>
-                  </li>
-                )
-              })}
-              {!v.sources.length && <li className="text-sm text-muted">No service linked.</li>}
-            </ul>
-          </section>
+          <Sources v={v} events={events} />
 
-          {seriesOpen && <SeriesSheet query={{ title: b.title, author: b.authors[0], series: b.series }} books={all.map((x) => x.book)} onClose={() => setSeriesOpen(false)} />}
+          {seriesOpen && <SeriesSheet bookId={b.id} query={{ title: b.title, author: b.authors[0], series: b.series }} books={all.map((x) => x.book)} onClose={() => setSeriesOpen(false)} />}
 
           <section className="mt-6 border-t border-mist pt-4">
             <button className="text-sm text-accent underline" onClick={() => setEditing(!editing)}>{editing ? 'Hide editing' : 'Edit details, merge or delete'}</button>
@@ -132,6 +111,10 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
                 {([['title', 'Title'], ['subtitle', 'Subtitle'], ['narrator', 'Narrator'], ['series', 'Series'], ['coverUrl', 'Cover image address']] as const).map(([k, l]) => (
                   <label key={k} className="block text-xs font-semibold text-muted">{l}<input className="field mt-1 font-normal text-ink" defaultValue={(b[k] as string) ?? ''} onBlur={(e) => e.target.value !== ((b[k] as string) ?? '') && patch({ [k]: e.target.value || undefined } as Partial<Book>)} /></label>
                 ))}
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-xs font-semibold text-muted">Book number in series<input className="field mt-1 font-normal text-ink" inputMode="decimal" defaultValue={b.seriesNumber ?? ''} onBlur={(e) => { const n = parseFloat(e.target.value); if ((Number.isFinite(n) ? n : undefined) !== b.seriesNumber) patch({ seriesNumber: Number.isFinite(n) ? n : undefined }) }} /></label>
+                  <label className="block text-xs font-semibold text-muted">Year published<input className="field mt-1 font-normal text-ink" inputMode="numeric" defaultValue={b.year ?? ''} onBlur={(e) => { const n = parseInt(e.target.value); if ((Number.isFinite(n) ? n : undefined) !== b.year) patch({ year: Number.isFinite(n) ? n : undefined }) }} /></label>
+                </div>
                 <label className="block text-xs font-semibold text-muted">Author(s), separated by semicolons<input className="field mt-1 font-normal text-ink" defaultValue={b.authors.join('; ')} onBlur={(e) => patch({ authors: e.target.value.split(';').map((x) => x.trim()).filter(Boolean) })} /></label>
                 <div className="flex gap-2">
                   <select className="field" value={mergeId} onChange={(e) => setMergeId(e.target.value)} aria-label="Merge with another book">

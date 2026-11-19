@@ -2,19 +2,29 @@ import { useEffect, useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { findSeries, type FindSeriesOutcome, type SeriesBook, type SeriesQuery } from '../lib/series'
 import { addMeta, googleUrl } from '../lib/discover'
-import { bestMatch, AUTO_MERGE } from '../lib/match'
+import { matchOwned } from '../lib/seriesTracker'
+import { tagSeries } from '../lib/store'
 import type { Book } from '../types'
 
 /** Shows every book in a series, marks the ones already on the shelf, and lets her add the missing ones in a tap. */
-export function SeriesSheet({ query, books, onClose, onOpen }: { query: SeriesQuery; books: Book[]; onClose: () => void; onOpen?: (id: string) => void }) {
+export function SeriesSheet({ query, books, onClose, onOpen, bookId }: { query: SeriesQuery; books: Book[]; onClose: () => void; onOpen?: (id: string) => void; bookId?: string }) {
+  const [tagged, setTagged] = useState(0)
   const [out, setOut] = useState<FindSeriesOutcome | null>(null)
   const [added, setAdded] = useState<Set<string>>(new Set())
-  useEffect(() => { let on = true; findSeries(query).then((o) => on && setOut(o)); return () => { on = false } }, [query])
+  useEffect(() => {
+    let on = true
+    findSeries(query).then(async (o) => {
+      if (!on) return
+      setOut(o)
+      // remember which of her books belong to this series, so the Series tracker can follow them
+      if (o.result) { const n = await tagSeries(o.result.books.flatMap((b) => { const own = matchOwned(b, books); return own ? [{ bookId: own.id, series: o.result!.name, seriesNumber: b.position }] : [] })); if (n) setTagged((t) => t + n) }
+    })
+    return () => { on = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.title, query.author, query.series])
 
   const rows = useMemo(() => (out?.result?.books ?? []).map((b) => {
-    const hit = bestMatch({ title: b.title, authors: b.authors, identifiers: {} }, books)
-    // series data from some sources has no author names, so an exact title match (0.78) counts as owned here
-    return { b, owned: hit && (hit.score >= AUTO_MERGE || (!b.authors.length && hit.score >= 0.78)) ? (hit.item as Book) : undefined }
+    return { b, owned: matchOwned(b, books) }
   }), [out, books])
   const missing = rows.filter((r) => !r.owned && !added.has(r.b.title))
   const add = async (b: SeriesBook) => { await addMeta({ title: b.title, authors: b.authors, coverUrl: b.coverUrl, year: b.year, genres: [], identifiers: {}, score: 1, provider: 'google' }, { want: true }); setAdded((s) => new Set(s).add(b.title)) }
@@ -34,6 +44,7 @@ export function SeriesSheet({ query, books, onClose, onOpen }: { query: SeriesQu
         )}
         {out?.result && (
           <>
+            {tagged > 0 && <p role="status" className="mt-1 text-xs text-sage">✓ Saved series info for {tagged} of your books</p>}
             <p className="mt-1 text-xs text-muted">{rows.length} books · {rows.filter((r) => r.owned).length} on your shelf · data from {out.result.provider === 'hardcover' ? 'Hardcover' : 'Inventaire'}</p>
             {missing.length > 1 && <button className="btn btn-primary mt-3 !min-h-10 text-sm" onClick={async () => { for (const r of missing) await add(r.b) }}>＋ Add the {missing.length} missing books to Want to Read</button>}
             <ol className="mt-3 space-y-2">

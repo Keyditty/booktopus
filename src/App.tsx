@@ -10,13 +10,14 @@ import { Tour } from './components/Tour'
 import { SeaFx } from './components/Bubbles'
 import { History, SettingsView } from './components/Secondary'
 import { Reef } from './components/Reef'
+import { SeriesView } from './components/SeriesView'
 import { computeStats, diffMessage } from './lib/gamify'
 import { useLibrary } from './lib/useLibrary'
 import { getSettings, possessive, saveSettings, type SearchMode, type ThemeName } from './lib/settings'
 import { NO_FILTERS, SHELVES, applyAll, inShelf, type Filters, type ShelfId, type SortKey } from './lib/shelves'
 
-type View = 'home' | 'shelf' | 'find' | 'import' | 'history' | 'settings' | 'stats'
-const VIEWS: View[] = ['shelf', 'find', 'import', 'history', 'settings', 'stats']
+type View = 'home' | 'shelf' | 'find' | 'series' | 'import' | 'history' | 'settings' | 'stats'
+const VIEWS: View[] = ['shelf', 'find', 'series', 'import', 'history', 'settings', 'stats']
 /** 'shelf' is the Library tab (#library); the default screen with no hash is Home. */
 const readHash = (): View => { const h = location.hash.replace('#', ''); return h === 'library' ? 'shelf' : VIEWS.includes(h as View) ? (h as View) : 'home' }
 
@@ -92,12 +93,12 @@ export default function App() {
           </div>
         </header>
 
-        {(view === 'home' || view === 'shelf' || view === 'find' || view === 'stats') && (
+        {(view === 'home' || view === 'shelf' || view === 'find' || view === 'series' || view === 'stats') && (
           <main className="mt-5">
-            {view !== 'stats' && <SearchBar q={q} setQ={onSearch} mode={mode} setMode={setMode} />}
-            <div data-tour="tabs" className="mt-4 flex justify-center gap-2" role="tablist" aria-label="Main">
-              {([['home', '🐙 Home'], ['shelf', '📚 Library'], ['stats', '🏆 Reef']] as const).map(([v, l]) => (
-                <button key={v} role="tab" aria-selected={view === v} onClick={() => go(v)} className={`btn !min-h-10 !py-1.5 text-sm ${view === v ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
+            {view !== 'stats' && view !== 'series' && <SearchBar q={q} setQ={onSearch} mode={mode} setMode={setMode} />}
+            <div data-tour="tabs" className="mx-auto mt-4 grid max-w-md grid-cols-4 gap-2" role="tablist" aria-label="Main">
+              {([['home', '🐙 Home'], ['shelf', '📚 Library'], ['series', '🔗 Series'], ['stats', '🏆 Reef']] as const).map(([v, l]) => (
+                <button key={v} role="tab" aria-selected={view === v} onClick={() => go(v)} className={`btn !min-h-16 flex-col !gap-0.5 !rounded-2xl !px-1 !py-2 text-xs leading-tight ${view === v ? 'btn-primary' : 'btn-ghost'}`}><span className="text-lg leading-none" aria-hidden>{l.split(' ')[0]}</span><span>{l.split(' ')[1]}</span></button>
               ))}
             </div>
           </main>
@@ -107,11 +108,13 @@ export default function App() {
           <main className="mt-5">
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
               : views.length === 0 ? <Welcome name={name} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
-              : <Home views={views} name={name} goals={goals} onReef={() => go('stats')} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
+              : <Home views={views} name={name} goals={goals} onReef={() => go('stats')} onSeries={() => go('series')} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
           </main>
         )}
 
         {view === 'find' && <main className="mt-5"><FindBooks q={q} books={data?.books ?? []} onOpen={(id) => setOpenId(id)} /></main>}
+
+        {view === 'series' && <main className="mt-5"><SeriesView books={data?.books ?? []} onOpen={(id) => setOpenId(id)} /></main>}
 
         {view === 'stats' && <main className="mt-5"><Reef views={views} goals={goals} onOpen={(id) => setOpenId(id)} /></main>}
 
@@ -146,7 +149,7 @@ export default function App() {
           </main>
         )}
 
-        {view !== 'shelf' && view !== 'home' && view !== 'stats' && view !== 'find' && (
+        {view !== 'shelf' && view !== 'home' && view !== 'stats' && view !== 'find' && view !== 'series' && (
           <main className="mt-6">
             <button className="mb-4 text-sm text-accent underline" onClick={() => go('home')}>← Home</button>
             {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('home')} prefill={prefill} />}

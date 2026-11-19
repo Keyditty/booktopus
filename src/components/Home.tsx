@@ -1,6 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { Octopus } from './Octopus'
+import { SeriesCard, useSeriesGroups } from './SeriesView'
+import { placeOnArm, setStatus } from '../lib/store'
 import { computeStats, type Goals } from '../lib/gamify'
 import { inShelf, type BookView, type ShelfId } from '../lib/shelves'
 
@@ -32,8 +34,8 @@ function Row({ title, hint, views, onOpen, onSeeAll }: { title: string; hint?: s
   )
 }
 
-export function Home({ views, name, goals, onReef, onOpen, onShelf, onAdd, onManual }: {
-  views: BookView[]; name: string; goals: Goals; onReef: () => void; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
+export function Home({ views, name, goals, onReef, onSeries, onOpen, onShelf, onAdd, onManual }: {
+  views: BookView[]; name: string; goals: Goals; onReef: () => void; onSeries: () => void; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
 }) {
   const st = useMemo(() => computeStats(views, goals), [views, goals])
   const finishedThisYear = st.thisYear
@@ -42,9 +44,15 @@ export function Home({ views, name, goals, onReef, onOpen, onShelf, onAdd, onMan
     const fin = views.filter((v) => inShelf(v, 'finished')).sort((a, b) => (b.book.finishedAt ?? '').localeCompare(a.book.finishedAt ?? ''))
     return { rec, fin, want: views.filter((v) => inShelf(v, 'want')), fav: views.filter((v) => inShelf(v, 'favorites')), borrowed: views.filter((v) => inShelf(v, 'borrowed')) }
   }, [views])
-  const surprise = () => {
-    const pool = by.want.length ? by.want : views.filter((v) => v.book.status === 'unknown')
-    if (pool.length) onOpen(pool[Math.floor(Math.random() * pool.length)].book.id)
+  const [pick, setPick] = useState<BookView | null | 'none'>(null)
+  const groups = useSeriesGroups(useMemo(() => views.map((v) => v.book), [views]))
+  const keepGoing = groups.filter((g) => g.state === 'in-progress').slice(0, 3)
+  // random pick from the to-read pile, skipping anything already on an octopus arm or being read
+  const surprise = (exclude?: string) => {
+    const free = (v: BookView) => v.book.arm == null && v.book.status !== 'in_progress' && v.book.status !== 'finished' && v.book.status !== 'dnf' && v.book.id !== exclude
+    const want = views.filter((v) => v.book.wantToRead && free(v)), rest = views.filter((v) => !v.book.wantToRead && v.book.status === 'unknown' && free(v))
+    const pool = want.length ? want : rest
+    setPick(pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'none')
   }
   return (
     <div className="fade-in">
@@ -64,13 +72,46 @@ export function Home({ views, name, goals, onReef, onOpen, onShelf, onAdd, onMan
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         <button className="btn btn-primary" onClick={onAdd}>＋ Add books</button>
         <button className="btn btn-ghost" onClick={onManual}>✍️ Add one by hand</button>
-        <button className="btn btn-ghost" onClick={surprise}>🎲 Surprise me</button>
+        <button className="btn btn-ghost" onClick={() => surprise()}>🎲 Surprise me</button>
       </div>
+      {keepGoing.length > 0 && (
+        <section className="mt-8" aria-label="Keep going in your series">
+          <div className="flex items-baseline justify-between px-1"><h2 className="text-base font-bold sm:text-lg">Keep going <span className="ml-2 font-sans text-xs font-normal text-muted">next in your series</span></h2><button className="text-sm text-accent underline" onClick={onSeries}>All series</button></div>
+          <div className="mt-3 space-y-3">{keepGoing.map((g) => <SeriesCard key={g.key} g={g} books={views.map((v) => v.book)} onOpen={onOpen} compact />)}</div>
+        </section>
+      )}
       <Row title="Fresh catch" hint="recently added" views={by.rec} onOpen={onOpen} onSeeAll={() => onShelf('all')} />
       <Row title="Want to read" views={by.want} onOpen={onOpen} onSeeAll={() => onShelf('want')} />
       <Row title="Finished lately" views={by.fin} onOpen={onOpen} onSeeAll={() => onShelf('finished')} />
       <Row title="Favorites" views={by.fav} onOpen={onOpen} onSeeAll={() => onShelf('favorites')} />
       <Row title="Borrowed right now" views={by.borrowed} onOpen={onOpen} onSeeAll={() => onShelf('borrowed')} />
+      {pick && <SurpriseSheet pick={pick} onClose={() => setPick(null)} onAgain={(id) => surprise(id)} onOpen={(id) => { setPick(null); onOpen(id) }} />}
+    </div>
+  )
+}
+
+function SurpriseSheet({ pick, onClose, onAgain, onOpen }: { pick: BookView | 'none'; onClose: () => void; onAgain: (id: string) => void; onOpen: (id: string) => void }) {
+  const b = pick === 'none' ? null : pick.book
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="Surprise pick">
+      <div className="sheet-in card w-full max-w-sm rounded-b-none p-5 text-center sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
+        {!b ? (
+          <><div className="text-4xl" aria-hidden>🎲</div><p className="mt-2">Nothing to pick from yet. Mark a few books as Want to read and try again.</p><button className="btn btn-primary mt-4" onClick={onClose}>Close</button></>
+        ) : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gold">{b.wantToRead ? 'From your Want to read pile' : 'From books you haven’t started'}</p>
+            <button className="mx-auto mt-3 block w-32" onClick={() => onOpen(b.id)} aria-label={`Open ${b.title}`}><Cover title={b.title} author={b.authors[0]} url={b.coverUrl} /></button>
+            <h3 className="serif mt-3 text-xl font-bold leading-tight">{b.title}</h3>
+            <p className="text-sm text-muted">{b.authors.join(', ')}</p>
+            <div className="mt-4 grid gap-2">
+              <button className="btn btn-primary" onClick={async () => { await setStatus(b.id, 'in_progress'); onClose() }}>📖 Start reading it</button>
+              <button className="btn btn-ghost" onClick={async () => { await placeOnArm(b.id, 'queued'); onClose() }}>🐙 Put it Up next</button>
+              <button className="btn btn-ghost" onClick={() => onAgain(b.id)}>🎲 Pick another</button>
+            </div>
+            <button className="mt-3 text-sm text-muted underline" onClick={onClose}>Not now</button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

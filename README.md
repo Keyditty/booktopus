@@ -10,6 +10,8 @@ and your reading history never leaves your device.
 - **Home** screen: greeting, then a friendly octopus whose **eight arms each hold a book** — either *Reading now* (glowing teal outline) or *Up next* (dashed gold outline), so you never forget what you meant to read next. Tap a free arm to give it a book; tap a held book to start it, finish it, or free the arm. Below are shelf rows (recently added, want to read, finished lately, favorites, borrowed).
 - **Reef** tab (gamification): points for every finished book (plus small bonuses), 8 sea-creature levels earned by books finished (10 / 25 / 50 / 100 / 250 / 500 / 1,000), 17 badges, yearly/monthly goals and streaks, books per month/year, counts by genre/format/service/author, "Ideas for you" (next in series, stalled reads, picks from your to-read pile), and an octopus fact of the day. Points are always calculated from your shelf, never stored, so they can't drift or double count.
 - **First-run tour**: a 9-step walkthrough on first open (replay from the ⋯ menu or Settings). A fresh install starts empty; sample books are only in Settings → "Add sample books".
+- **Series tracker** (🔗 Series tab + a "Keep going" row on Home): every series you're in, progress dots, what's next (even if you don't own it yet), one-tap Start reading / Up next / Want to read. Series info is saved from lookups, from typing it on a book, or by one "Check my shelf" button.
+- **Edit where a book lives**: change service/format/status per copy, add another place ("also on Libby"), or remove one.
 - **Two searches**: 📚 My library vs 🌐 Find any book (title, author or ISBN; add to Want to Read, mark "I have it", see the whole series).
 - **Series lookup (experimental)**: every book in a series via Hardcover (free token) or Inventaire (no key), with "Test connection" buttons in Settings.
 - **Spice level** 🌶 0-5 per book, shown on the cover, filterable, in the CSV export.
@@ -39,7 +41,7 @@ npm run build      # outputs dist/
 ```
 Node 20+ required. The site also loads two Google Fonts (Cinzel, Alegreya) and falls back to system serif fonts offline. `npm run dev/build` first copies the OCR engine + English data into `public/ocr` (git-ignored) so OCR is self-hosted.
 
-Browser smoke test (optional, needs Playwright): see `e2e/smoke.cjs`.
+Browser smoke tests (optional, need Playwright): `e2e/smoke.cjs` and `e2e/features.cjs`.
 
 ## Deploy to GitHub Pages
 1. Push to `main`. In the repo: **Settings → Pages → Source: GitHub Actions**.
