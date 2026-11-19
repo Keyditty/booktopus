@@ -8,19 +8,32 @@ afterEach(() => { globalThis.fetch = real })
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
 
 describe('Hardcover series (fake responses)', () => {
-  it('finds a book, then lists its series in order', async () => {
-    const calls: string[] = []
+  const seriesRows = [{ id: 1, name: 'The Empyrean', books_count: 3, book_series: [
+    { position: 2, book: { title: 'Iron Flame', release_year: 2023, cached_image: { url: 'https://x/i.jpg' }, cached_contributors: [{ author: { name: 'Rebecca Yarros' } }] } },
+    { position: 1, book: { title: 'Fourth Wing', release_year: 2023, cached_contributors: [{ author: { name: 'Rebecca Yarros' } }] } }] }]
+  it('never sends _ilike (Hardcover rejects it), finds the exact series name via book search, and sorts by position', async () => {
+    const queries: string[] = []
     globalThis.fetch = (async (_u: string, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)); calls.push(body.query.slice(0, 20))
+      const body = JSON.parse(String(init?.body)); queries.push(body.query)
       expect((init!.headers as Record<string, string>).authorization).toBe('Bearer abc')
       if (body.query.includes('search(')) return json({ data: { search: { results: { hits: [{ document: { title: 'Fourth Wing', series_names: ['The Empyrean'] } }] } } } })
-      return json({ data: { series: [{ id: 1, name: 'The Empyrean', books_count: 3, book_series: [
-        { position: 2, book: { title: 'Iron Flame', release_year: 2023, cached_image: { url: 'https://x/i.jpg' }, cached_contributors: [{ author: { name: 'Rebecca Yarros' } }] } },
-        { position: 1, book: { title: 'Fourth Wing', release_year: 2023, cached_contributors: [{ author: { name: 'Rebecca Yarros' } }] } }] }] } })
+      expect(body.variables.n).toBe('The Empyrean')
+      return json({ data: { series: seriesRows } })
     }) as typeof fetch
     const r = (await hardcoverSeries({ title: 'Fourth Wing', author: 'Rebecca Yarros' }, 'abc'))!
-    expect(r.name).toBe('The Empyrean'); expect(r.books.map((b) => b.title)).toEqual(['Iron Flame', 'Fourth Wing']) // order is whatever the API returns (it was asked to sort by position)
-    expect(r.books[0].authors).toEqual(['Rebecca Yarros']); expect(r.books[0].coverUrl).toBe('https://x/i.jpg')
+    expect(queries.some((q) => /ilike/i.test(q))).toBe(false)
+    expect(r.name).toBe('The Empyrean'); expect(r.books.map((b) => b.title)).toEqual(['Fourth Wing', 'Iron Flame'])
+    expect(r.books[1].authors).toEqual(['Rebecca Yarros']); expect(r.books[1].coverUrl).toBe('https://x/i.jpg')
+  })
+  it('uses a saved series name directly, and falls back to a smaller query if a field is rejected', async () => {
+    let calls = 0
+    globalThis.fetch = (async (_u: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)); calls++
+      if (body.query.includes('cached_image')) return json({ errors: [{ message: 'field "cached_image" not permitted' }] })
+      return json({ data: { series: [{ id: 1, name: 'The Empyrean', book_series: [{ position: 1, book: { title: 'Fourth Wing' } }] }] } })
+    }) as typeof fetch
+    const r = (await hardcoverSeries({ title: 'x', series: 'The Empyrean' }, 'abc'))!
+    expect(r.books.map((b) => b.title)).toEqual(['Fourth Wing']); expect(calls).toBe(2)
   })
   it('accepts a token that already starts with Bearer, and reports API errors readably', async () => {
     globalThis.fetch = (async (_u: string, init?: RequestInit) => { expect((init!.headers as Record<string, string>).authorization).toBe('Bearer zzz'); return json({ errors: [{ message: 'Invalid token' }] }) }) as typeof fetch

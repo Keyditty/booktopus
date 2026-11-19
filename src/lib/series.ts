@@ -40,23 +40,50 @@ async function hcQuery(token: string, query: string, variables: Record<string, u
   return d.data
 }
 
-export async function hardcoverSeries(q: SeriesQuery, token: string): Promise<SeriesResult | null> {
-  let name = q.series?.trim()
-  if (!name) {
-    const d = await hcQuery(token, 'query($q:String!){ search(query:$q, query_type:"Book", per_page:5){ results } }', { q: `${q.title} ${q.author ?? ''}`.trim() })
-    const hits: any[] = d?.search?.results?.hits ?? []
-    name = hits.map((h) => h?.document).find((doc) => doc?.series_names?.length)?.series_names?.[0]
-  }
-  if (!name) return null
-  const d = await hcQuery(token, `query($n:String!){ series(where:{name:{_ilike:$n}}, limit:5, order_by:{books_count:desc}){ id name books_count book_series(order_by:{position:asc}){ position book{ title release_year cached_image cached_contributors } } } }`, { n: `%${name}%` })
-  const rows: any[] = d?.series ?? []
-  if (!rows.length) return null
-  const best = rows.find((r) => normTitle(r.name) === normTitle(name!)) ?? rows[0]
+/** Hardcover blocks fuzzy operators like _ilike ("not permitted on this server"), so we only use exact matches (_eq) and its own search. */
+const SERIES_FULL = `query($n:String!){ series(where:{name:{_eq:$n}}, limit:3){ id name books_count book_series(order_by:{position:asc}){ position book{ title release_year cached_image cached_contributors } } } }`
+const SERIES_BY_ID = `query($id:Int!){ series(where:{id:{_eq:$id}}, limit:1){ id name books_count book_series(order_by:{position:asc}){ position book{ title release_year cached_image cached_contributors } } } }`
+const SERIES_MIN = `query($n:String!){ series(where:{name:{_eq:$n}}, limit:3){ id name book_series{ position book{ title } } } }`
+
+function mapHardcoverSeries(rows: any[], wanted: string): SeriesResult | null {
+  if (!rows?.length) return null
+  const best = rows.find((r) => normTitle(r.name) === normTitle(wanted)) ?? rows.sort((a, b) => (b.books_count ?? 0) - (a.books_count ?? 0))[0]
   const books: SeriesBook[] = (best.book_series ?? []).filter((x: any) => x?.book?.title).map((x: any) => ({
     position: typeof x.position === 'number' ? x.position : undefined, title: x.book.title, year: x.book.release_year ?? undefined,
     coverUrl: x.book.cached_image?.url, authors: (Array.isArray(x.book.cached_contributors) ? x.book.cached_contributors : []).map((c: any) => c?.author?.name).filter(Boolean),
-  }))
+  })).sort((a: SeriesBook, b: SeriesBook) => (a.position ?? 1e9) - (b.position ?? 1e9))
   return books.length ? { name: best.name, provider: 'hardcover', books } : null
+}
+
+async function hcSeriesByExactName(token: string, name: string): Promise<SeriesResult | null> {
+  try { return mapHardcoverSeries((await hcQuery(token, SERIES_FULL, { n: name }))?.series ?? [], name) }
+  catch (e) {
+    // if a field in the rich query isn't allowed, retry with the smallest possible query so we still get titles in order
+    if (/not permitted|cannot query field|not found in type|validation/i.test((e as Error).message)) return mapHardcoverSeries((await hcQuery(token, SERIES_MIN, { n: name }))?.series ?? [], name)
+    throw e
+  }
+}
+
+export async function hardcoverSeries(q: SeriesQuery, token: string): Promise<SeriesResult | null> {
+  const names: string[] = []
+  if (q.series?.trim()) names.push(q.series.trim())
+  // Hardcover's own book search tells us the exact series name(s) it uses
+  const bookHits = async () => {
+    const d = await hcQuery(token, 'query($q:String!){ search(query:$q, query_type:"Book", per_page:5){ results } }', { q: `${q.title} ${q.author ?? ''}`.trim() })
+    const hits: any[] = d?.search?.results?.hits ?? []
+    for (const h of hits) for (const n of h?.document?.series_names ?? []) if (n && !names.includes(n)) names.push(n)
+  }
+  for (const n of names.slice()) { const r = await hcSeriesByExactName(token, n); if (r) return r }
+  await bookHits()
+  for (const n of names) { const r = await hcSeriesByExactName(token, n); if (r) return r }
+  // last resort: Hardcover's series search, then fetch by id
+  try {
+    const d = await hcQuery(token, 'query($q:String!){ search(query:$q, query_type:"Series", per_page:3){ results } }', { q: q.series?.trim() || q.title })
+    const doc = (d?.search?.results?.hits ?? [])[0]?.document
+    const id = parseInt(doc?.id)
+    if (Number.isFinite(id)) return mapHardcoverSeries((await hcQuery(token, SERIES_BY_ID, { id }))?.series ?? [], doc?.name ?? q.title)
+  } catch { /* fall through */ }
+  return null
 }
 
 /* ---------------- Inventaire ---------------- */
