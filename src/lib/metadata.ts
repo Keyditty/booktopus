@@ -217,21 +217,21 @@ export async function discoverBooks(kind: 'author' | 'genre', value: string): Pr
   if (!getSettings().lookupOnline) return []
   if (kind === 'author') return searchBooks(value, 16, 'author') // same smart author search as "Find any book" (spelling variants, ranked by fame)
   const key = getSettings().googleKey
-  const target = { title: value, authors: kind === 'author' ? [value] : [] }
+  const target = { title: value, authors: [] as string[] }
   const out: Meta[] = []
   try {
-    const q = kind === 'author' ? `inauthor:"${value}"` : `subject:"${value}"`
+    const q = `subject:"${value}"`
     const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=16&printType=books&langRestrict=en&q=${encodeURIComponent(q)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
     for (const v of d.items ?? []) { const m = fromGoogle(v, target); if (m) out.push(m) }
   } catch { /* quota or offline */ }
   if (out.length < 5) {
     try {
-      const qs = kind === 'author' ? `author=${encodeURIComponent(value)}` : `subject=${encodeURIComponent(value.toLowerCase())}`
+      const qs = `subject=${encodeURIComponent(value.toLowerCase())}`
       const d = await getJson(`https://openlibrary.org/search.json?${qs}&limit=16&fields=key,title,subtitle,author_name,first_publish_year,cover_i,isbn,subject,ratings_count,edition_count`)
       for (const x of d.docs ?? []) { const m = fromOpenLibrary(x, target); if (m) out.push(m) }
     } catch { /* offline */ }
   }
-  if (out.length < 5 && kind === 'genre') {
+  if (out.length < 5) {
     // a mood or made-up genre ("spicy fantasy", "romantasy") is rarely an official subject heading: fall back to a plain keyword search
     try {
       const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=16&printType=books&langRestrict=en&orderBy=relevance&q=${encodeURIComponent(value)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
