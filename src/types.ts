@@ -1,6 +1,6 @@
 // ---- Domain model ---------------------------------------------------------
 // Source activity (what happened on a service) is stored on SourceRecord/ActivityEvent.
-// Personal reading status (did Toni read it) is stored on Book. They never overwrite each other.
+// Personal reading status (did the reader read it) is stored on Book. They never overwrite each other.
 
 export type SourceName = 'audible' | 'libby' | 'hoopla' | 'chatgpt' | 'screenshot' | 'manual' | 'other'
 export type Format = 'audiobook' | 'ebook' | 'print' | 'comic' | 'unknown'

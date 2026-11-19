@@ -1,7 +1,7 @@
 {
   "name": "Booktopus",
   "short_name": "Booktopus",
-  "description": "Toni's underwater library: all your books in one place.",
+  "description": "Your underwater library: all your books in one place.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -29,7 +29,7 @@ export function History({ batches }: { batches: ImportBatch[] }) {
   )
 }
 
-export function SettingsView({ bookCount, onChanged, onTheme }: { bookCount: number; onChanged: () => void; onTheme: (t: ThemeName) => void }) {
+export function SettingsView({ bookCount, onChanged, onTheme, name, onName }: { bookCount: number; onChanged: () => void; onTheme: (t: ThemeName) => void; name: string; onName: (n: string) => void }) {
   const [s, setS] = useState(getSettings())
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -39,7 +39,10 @@ export function SettingsView({ bookCount, onChanged, onTheme }: { bookCount: num
     <div className="mx-auto max-w-2xl space-y-6 fade-in">
       <h2 className="text-2xl font-bold">Settings &amp; backup</h2>
       <section className="card p-5">
-        <h3 className="text-lg font-bold">Ocean</h3>
+        <h3 className="text-lg font-bold">Your name</h3>
+        <label className="mt-2 block text-xs font-semibold text-muted" htmlFor="s-name">Shown in the greeting and header
+          <input id="s-name" className="field mt-1 font-normal text-ink" defaultValue={name} onBlur={(e) => onName(e.target.value)} autoComplete="given-name" /></label>
+        <h3 className="mt-5 text-lg font-bold">Ocean</h3>
         <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Color theme">
           {([['deep', '🌌 Deep Sea'], ['lagoon', '🏝️ Sunlit Lagoon']] as const).map(([k, l]) => (
             <button key={k} role="radio" aria-checked={s.theme === k} className={`btn ${s.theme === k ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { upd({ theme: k }); onTheme(k) }}>{l}</button>

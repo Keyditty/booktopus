@@ -7,7 +7,7 @@ import { Home } from './components/Home'
 import { SeaFx } from './components/Bubbles'
 import { History, SettingsView, Stats } from './components/Secondary'
 import { useLibrary } from './lib/useLibrary'
-import { getSettings, saveSettings, type ThemeName } from './lib/settings'
+import { getSettings, possessive, saveSettings, type ThemeName } from './lib/settings'
 import { NO_FILTERS, SHELVES, applyAll, inShelf, type Filters, type ShelfId, type SortKey } from './lib/shelves'
 import { loadSampleBooks } from './lib/sample'
 
@@ -28,8 +28,11 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [menu, setMenu] = useState(false)
   const [theme, setTheme] = useState<ThemeName>(getSettings().theme)
+  const [name, setNameState] = useState(getSettings().ownerName)
+  const setName = (n: string) => { const v = n.trim() || 'Reader'; setNameState(v); saveSettings({ ownerName: v }) }
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+  useEffect(() => { document.title = `Booktopus · ${possessive(name)} library` }, [name])
   useEffect(() => { const h = () => setViewState(readHash()); window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
   const go = (v: View, kind: ImportKind = 'hub', pre = '') => { setMenu(false); setOpenId(null); if (v === 'import') { setImportKind(kind); setPrefill(pre) } location.hash = v === 'home' ? '' : v === 'shelf' ? 'library' : v; setViewState(v) }
   const switchTheme = (t: ThemeName) => { setTheme(t); saveSettings({ theme: t }) }
@@ -46,7 +49,7 @@ export default function App() {
         <header className="flex items-center gap-3">
           <button onClick={() => go('home')} className="flex items-center gap-3 text-left" aria-label="Booktopus home">
             <img src="./icon.svg" alt="" className="h-11 w-11 rounded-xl shadow" />
-            <span><span className="block font-display text-xl font-bold leading-none tracking-wide sm:text-3xl">Booktopus</span><span className="serif text-sm italic text-muted">Toni’s underwater library</span></span>
+            <span><span className="block font-display text-xl font-bold leading-none tracking-wide sm:text-3xl">Booktopus</span><span className="serif text-sm italic text-muted">{possessive(name)} underwater library</span></span>
           </button>
           <div className="ml-auto flex items-center gap-2">
             <button className="btn btn-primary whitespace-nowrap" onClick={() => go('import')}><span aria-hidden>＋</span> Add<span className="hidden sm:inline"> books</span></button>
@@ -81,8 +84,8 @@ export default function App() {
         {view === 'home' && (
           <main className="mt-5">
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
-              : views.length === 0 ? <Welcome onImport={() => go('import')} onManual={() => go('import', 'manual')} />
-              : <Home views={views} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
+              : views.length === 0 ? <Welcome name={name} setName={setName} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
+              : <Home views={views} name={name} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
           </main>
         )}
 
@@ -97,7 +100,7 @@ export default function App() {
             {!loading && views.length > 0 && <div className="mt-3"><FilterBar views={views} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} /></div>}
 
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
-              : views.length === 0 ? <Welcome onImport={() => go('import')} onManual={() => go('import', 'manual')} />
+              : views.length === 0 ? <Welcome name={name} setName={setName} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
               : shown.length === 0 ? (
                 <div className="mt-14 text-center fade-in">
                   <p className="text-muted">{searching ? `Nothing matches “${q}”.` : 'Nothing on this shelf yet.'}</p>
@@ -122,7 +125,7 @@ export default function App() {
             <button className="mb-4 text-sm text-accent underline" onClick={() => go('home')}>← Home</button>
             {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('home')} prefill={prefill} />}
             {view === 'history' && <History batches={data?.batches ?? []} />}
-            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} />}
+            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} name={name} onName={setName} />}
             {view === 'stats' && <Stats views={views} onOpen={(id) => { go('home'); setOpenId(id) }} />}
           </main>
         )}
@@ -133,13 +136,15 @@ export default function App() {
   )
 }
 
-function Welcome({ onImport, onManual }: { onImport: () => void; onManual: () => void }) {
+function Welcome({ name, setName, onImport, onManual }: { name: string; setName: (n: string) => void; onImport: () => void; onManual: () => void }) {
   const [busy, setBusy] = useState(false)
   return (
     <div className="card fade-in mx-auto mt-10 max-w-xl p-8 text-center">
       <div className="text-5xl" aria-hidden>🐙</div>
-      <h2 className="mt-3 text-2xl font-bold">Welcome, Toni</h2>
+      <h2 className="mt-3 text-2xl font-bold">Welcome{name ? `, ${name}` : ''}</h2>
       <p className="serif mt-2 text-lg text-muted">Your octopus has eight arms and an empty shelf. Bring in the books you already have — no typing them all in.</p>
+      <label className="mx-auto mt-4 block max-w-xs text-left text-xs font-semibold text-muted" htmlFor="w-name">What should we call you?
+        <input id="w-name" className="field mt-1 font-normal text-ink" defaultValue={name} onBlur={(e) => setName(e.target.value)} autoComplete="given-name" /></label>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <button className="btn btn-primary" onClick={onImport}>Add my books</button>
         <button className="btn btn-ghost" onClick={onManual}>Add one by hand</button>

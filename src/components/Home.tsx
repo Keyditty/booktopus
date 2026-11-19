@@ -3,9 +3,9 @@ import { Cover } from './Cover'
 import { Octopus } from './Octopus'
 import { inShelf, type BookView, type ShelfId } from '../lib/shelves'
 
-function greeting() {
+function greeting(name: string) {
   const h = new Date().getHours()
-  return h < 5 ? 'Still up, Toni?' : h < 12 ? 'Good morning, Toni' : h < 18 ? 'Good afternoon, Toni' : 'Good evening, Toni'
+  return h < 5 ? `Still up, ${name}?` : h < 12 ? `Good morning, ${name}` : h < 18 ? `Good afternoon, ${name}` : `Good evening, ${name}`
 }
 
 function Row({ title, hint, views, onOpen, onSeeAll }: { title: string; hint?: string; views: BookView[]; onOpen: (id: string) => void; onSeeAll?: () => void }) {
@@ -31,8 +31,8 @@ function Row({ title, hint, views, onOpen, onSeeAll }: { title: string; hint?: s
   )
 }
 
-export function Home({ views, onOpen, onShelf, onAdd, onManual }: {
-  views: BookView[]; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
+export function Home({ views, name, onOpen, onShelf, onAdd, onManual }: {
+  views: BookView[]; name: string; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
 }) {
   const year = String(new Date().getFullYear())
   const finishedThisYear = views.filter((v) => v.book.status === 'finished' && v.book.finishedAt?.startsWith(year)).length
@@ -48,7 +48,7 @@ export function Home({ views, onOpen, onShelf, onAdd, onManual }: {
   return (
     <div className="fade-in">
       <div className="text-center">
-        <h2 className="text-2xl font-bold sm:text-3xl">{greeting()}</h2>
+        <h2 className="text-2xl font-bold sm:text-3xl">{greeting(name)}</h2>
         <p className="serif text-muted">{views.length} books in your library{finishedThisYear ? ` · ${finishedThisYear} finished this year` : ''}</p>
       </div>
       <Octopus views={views} allViews={views} onOpen={onOpen} />

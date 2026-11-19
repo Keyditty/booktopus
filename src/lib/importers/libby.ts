@@ -50,7 +50,7 @@ export function parseLibby(text: string, filename?: string): { candidates: Candi
       c = makeCandidate({
         title, authors, source: 'libby', format, library: library || undefined, identifiers: { isbn },
         activity: 'unknown', events: [], provenance: prov, confidence: 0.95,
-        // NOTE: no `status` — a Libby loan says nothing about whether Toni finished the book.
+        // NOTE: no `status` — a Libby loan says nothing about whether the reader finished the book.
         sourceId: isbn ? undefined : undefined,
       })
       groups.set(key, c)
