@@ -25,7 +25,7 @@ and your reading history never leaves your device.
 - Search title / author / narrator / series; filter by service, status, genre, format, author, series, rating; sort.
 - One-tap status, favorite, star rating, dates, notes, “read again”.
 - **Add one book by hand**: type a few words, tap the matching book (cover + author fill in), choose format/service/status. Also offered when a search finds nothing.
-- **Add books** from (Excel `.xlsx`, CSV, JSON, text or pasted): pasted lists (ChatGPT chats, markdown tables, CSV, JSON, TXT) · screenshots (many at once, on-device OCR) ·
+- **Add books** from (Excel `.xlsx` (any layout: pick the title/author/series/issue columns, with a live preview; every sheet is read), CSV, JSON, text or pasted): pasted lists (ChatGPT chats, markdown tables, CSV, JSON, TXT) · screenshots (many at once, on-device OCR) ·
   Libby timeline export · Audible (copied text / third-party CSV) · Hoopla (copied history).
 - Review screen before anything is saved: new / already-have / possible duplicates / needs a look; accept all confident matches in one tap.
 - Same book on several services = one book with each service kept underneath. Re-importing never duplicates. Undo any import.

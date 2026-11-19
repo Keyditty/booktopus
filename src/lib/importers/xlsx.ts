@@ -26,7 +26,7 @@ async function unzip(buf: ArrayBuffer): Promise<Map<string, Uint8Array>> {
     const lho = dv.getUint32(p + 42, true)
     const name = dec.decode(u8.subarray(p + 46, p + 46 + nlen))
     p += 46 + nlen + elen + clen
-    if (!/^xl\/(worksheets\/sheet\d+\.xml|sharedStrings\.xml|workbook\.xml)$/.test(name)) continue
+    if (!/^xl\/(worksheets\/[^/]+\.xml|sharedStrings\.xml|workbook\.xml|_rels\/workbook\.xml\.rels)$/.test(name)) continue
     const dataStart = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true)
     const raw = u8.subarray(dataStart, dataStart + csize)
     out.set(name, method === 0 ? raw : await inflateRaw(raw))
@@ -44,39 +44,67 @@ function serialToIso(n: number): string {
   return d.toISOString().replace('T', ' ').slice(0, 19)
 }
 
-export async function xlsxToRows(buf: ArrayBuffer): Promise<string[][]> {
-  const parts = await unzip(buf)
-  const sheetName = [...parts.keys()].filter((k) => k.startsWith('xl/worksheets/')).sort()[0]
-  if (!sheetName) throw new Error('No worksheet found in this Excel file.')
-  const shared = parts.has('xl/sharedStrings.xml')
-    ? [...dec.decode(parts.get('xl/sharedStrings.xml')!).matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => textOf(m[1]))
-    : []
-  const xml = dec.decode(parts.get(sheetName)!)
+export interface Sheet { name: string; rows: string[][] }
+
+/** Rows of one worksheet's XML. Tolerates self-closing blank rows, namespace prefixes, inline strings and rich-text cells. */
+function parseSheet(xml: string, shared: string[]): string[][] {
   const rows: string[][] = []
-  for (const rm of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+  for (const rm of xml.matchAll(/<(?:\w+:)?row\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?row>)/g)) {
     const row: string[] = []
-    for (const cm of rm[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    for (const cm of (rm[1] ?? '').matchAll(/<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g)) {
       const attrs = cm[1], body = cm[2] ?? ''
-      const ref = /r="([A-Z]+\d+)"/.exec(attrs)?.[1]
-      const type = /t="(\w+)"/.exec(attrs)?.[1]
+      const ref = /\br="([A-Z]+\d+)"/.exec(attrs)?.[1]
+      const type = /\bt="(\w+)"/.exec(attrs)?.[1]
       let val = ''
-      if (type === 's') val = shared[+(/<v>(\d+)<\/v>/.exec(body)?.[1] ?? -1)] ?? ''
+      if (type === 's') val = shared[+(/<(?:\w+:)?v>(\d+)<\/(?:\w+:)?v>/.exec(body)?.[1] ?? -1)] ?? ''
       else if (type === 'inlineStr') val = textOf(body)
-      else { const v = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1]; val = v == null ? '' : unescapeXml(v) }
+      else { const v = /<(?:\w+:)?v>([\s\S]*?)<\/(?:\w+:)?v>/.exec(body)?.[1]; val = v == null ? '' : unescapeXml(v) }
       const idx = ref ? colIndex(ref) : row.length
       while (row.length < idx) row.push('')
-      row[idx] = val
+      row[idx] = val.trim()
     }
     rows.push(row)
   }
   // turn date serial numbers into readable dates in columns whose header looks like a date
-  const head = (rows[0] ?? []).map((h) => h.toLowerCase())
+  const hi = rows.findIndex((r) => r.filter(Boolean).length >= 2)
+  const head = (rows[hi] ?? []).map((h) => h.toLowerCase())
   head.forEach((h, c) => {
     if (!/(date|time|timestamp|borrowed|returned|finished|started)/.test(h)) return
-    for (let r = 1; r < rows.length; r++) { const v = rows[r][c]; if (v && /^\d{5}(\.\d+)?$/.test(v) && +v > 20000 && +v < 80000) rows[r][c] = serialToIso(+v) }
+    for (let r = hi + 1; r < rows.length; r++) { const v = rows[r][c]; if (v && /^\d{5}(\.\d+)?$/.test(v) && +v > 20000 && +v < 80000) rows[r][c] = serialToIso(+v) }
   })
   return rows
 }
+
+/** Every worksheet in the workbook, in tab order, with its tab name. */
+export async function xlsxSheets(buf: ArrayBuffer): Promise<Sheet[]> {
+  const parts = await unzip(buf)
+  const shared = parts.has('xl/sharedStrings.xml')
+    ? [...dec.decode(parts.get('xl/sharedStrings.xml')!).matchAll(/<(?:\w+:)?si\b[^>]*>([\s\S]*?)<\/(?:\w+:)?si>/g)].map((m) => textOf(m[1]))
+    : []
+  // tab order and names come from workbook.xml + its relationships; fall back to file order if they can't be read
+  const named: { name: string; path: string }[] = []
+  const wb = parts.has('xl/workbook.xml') ? dec.decode(parts.get('xl/workbook.xml')!) : ''
+  const rels = parts.has('xl/_rels/workbook.xml.rels') ? dec.decode(parts.get('xl/_rels/workbook.xml.rels')!) : ''
+  const target = new Map<string, string>()
+  for (const m of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) { const id = /\bId="([^"]+)"/.exec(m[1])?.[1], t = /\bTarget="([^"]+)"/.exec(m[1])?.[1]; if (id && t) target.set(id, t.replace(/^\/?(xl\/)?/, 'xl/')) }
+  for (const m of wb.matchAll(/<(?:\w+:)?sheet\b([^>]*)\/?>/g)) {
+    const name = unescapeXml(/\bname="([^"]*)"/.exec(m[1])?.[1] ?? ''), rid = /\br:id="([^"]+)"/.exec(m[1])?.[1]
+    const path = rid ? target.get(rid) : undefined
+    if (path && parts.has(path)) named.push({ name: name || `Sheet ${named.length + 1}`, path })
+  }
+  if (!named.length) [...parts.keys()].filter((k) => k.startsWith('xl/worksheets/')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach((path, i) => named.push({ name: `Sheet ${i + 1}`, path }))
+  if (!named.length) throw new Error('No worksheet found in this Excel file.')
+  return named.map(({ name, path }) => ({ name, rows: parseSheet(dec.decode(parts.get(path)!), shared) }))
+}
+
+/** Pick the sheet most likely to be the list of books: the one with the most multi-column rows (summary/instruction tabs lose). */
+export function bestSheet(sheets: Sheet[]): Sheet {
+  const score = (s: Sheet) => s.rows.filter((r) => r.filter(Boolean).length >= 2).length
+  return [...sheets].sort((a, b) => score(b) - score(a))[0]
+}
+
+/** Rows of the best sheet (kept for the simple callers and tests). */
+export async function xlsxToRows(buf: ArrayBuffer): Promise<string[][]> { return bestSheet(await xlsxSheets(buf)).rows }
 
 export function rowsToCsv(rows: string[][]): string {
   return rows.map((r) => r.map((c) => `"${(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')

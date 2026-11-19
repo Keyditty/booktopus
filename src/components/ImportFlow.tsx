@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Review } from './Review'
+import { ColumnMapper } from './ColumnMapper'
+import type { Sheet } from '../lib/importers/xlsx'
 import { ManualAdd } from './ManualAdd'
 import { parseBookText } from '../lib/importers/text'
 import { parseLibby } from '../lib/importers/libby'
@@ -47,7 +49,7 @@ export function ImportFlow({ kind, setKind, books, onDone, prefill }: { kind: Im
 const TEXT_CFG: Record<'paste' | 'libby' | 'audible' | 'hoopla', { title: string; source: SourceName; steps: ReactNode[]; placeholder: string; note?: string }> = {
   paste: {
     title: 'Paste a book list', source: 'chatgpt', placeholder: 'Paste your ChatGPT conversation or list here…',
-    steps: ['Open your ChatGPT conversation, select the list (or the whole chat) and copy it.', 'Paste it below — or choose a .txt, .md, .csv, .json or Excel (.xlsx) file.', 'Chatter and explanations are ignored; only book titles are picked out.'],
+    steps: ['Open your ChatGPT conversation, select the list (or the whole chat) and copy it.', 'Paste it below — or choose a .txt, .md, .csv, .json or Excel (.xlsx) file.', 'Excel collection lists (books or comics) are fine: you’ll confirm which column is the title, and see a preview before anything is added.', 'Chatter and explanations are ignored; only book titles are picked out.'],
   },
   libby: {
     title: 'Import Libby history', source: 'libby', placeholder: 'Paste the table you copied from your Libby timeline, or choose the exported file…',
@@ -70,20 +72,34 @@ function TextImport({ kind, onResult, onBack, switchTo }: { kind: 'paste' | 'lib
   const [text, setText] = useState('')
   const [names, setNames] = useState<string[]>([])
   const [err, setErr] = useState('')
+  const [table, setTable] = useState<{ fileName: string; sheets: Sheet[] } | null>(null)
+  const [info, setInfo] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
+    setErr(''); setInfo(''); setTable(null)
     const parts: string[] = []
     try {
       for (const f of Array.from(files)) {
-        if (/\.xlsx$/i.test(f.name)) parts.push(await (await import('../lib/importers/xlsx')).xlsxToCsv(await f.arrayBuffer()))
-        else if (/\.xls$/i.test(f.name)) { setErr('Old .xls files can’t be read. In Excel choose File → Save As → “Excel Workbook (.xlsx)” or “CSV”, then pick that file.'); return }
-        else parts.push(await f.text())
+        if (/\.xls$/i.test(f.name)) { setErr('Old .xls files can’t be read. In Excel choose File → Save As → “Excel Workbook (.xlsx)” or “CSV”, then pick that file.'); return }
+        if (/\.xlsx$/i.test(f.name)) {
+          const x = await import('../lib/importers/xlsx')
+          const buf = await f.arrayBuffer()
+          if (kind !== 'libby') {
+            // any collection spreadsheet: let the reader confirm which columns are which
+            const sheets = await x.xlsxSheets(buf)
+            if (!sheets.some((s) => s.rows.some((r) => r.some(Boolean)))) { setErr(`“${f.name}” has no data in it (every sheet is empty). Is it the right file?`); return }
+            setNames([f.name]); setText(''); setTable({ fileName: f.name, sheets }); return
+          }
+          parts.push(await x.xlsxToCsv(buf))
+        } else parts.push(await f.text())
       }
-    } catch (e) { setErr((e as Error).message); return }
-    setErr('')
-    setNames(Array.from(files).map((f) => f.name)); setText(parts.join('\n\n'))
+    } catch (e) { setErr(`That file couldn’t be read: ${(e as Error).message}`); return }
+    const joined = parts.join('\n\n')
+    setNames(Array.from(files).map((f) => f.name)); setText(joined)
+    if (!joined.trim()) setErr('That file is empty, so there’s nothing to import.')
+    else setInfo(`Read ${joined.split('\n').length.toLocaleString()} lines. Press “Find my books” to continue.`)
   }
 
   function go() {
@@ -105,13 +121,21 @@ function TextImport({ kind, onResult, onBack, switchTo }: { kind: 'paste' | 'lib
       <h2 className="mt-2 text-2xl font-bold">{cfg.title}</h2>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted">{cfg.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
       {cfg.note && <p className="mt-3 rounded-xl bg-mist/70 p-3 text-sm">{cfg.note}</p>}
-      <textarea className="field mt-4 min-h-56 font-mono text-sm" value={text} placeholder={cfg.placeholder} onChange={(e) => { setText(e.target.value); setNames([]) }} aria-label="Book text" />
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input ref={fileRef} type="file" hidden multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,.xlsx,.xls,text/*,application/json" onChange={(e) => onFiles(e.target.files)} />
-        <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Choose a file…</button>
-        {names.length > 0 && <span className="text-sm text-muted">{names.join(', ')}</span>}
-        <button className="btn btn-primary ml-auto" disabled={!text.trim()} onClick={go}>Find my books</button>
-      </div>
+      {table ? (
+        <ColumnMapper fileName={table.fileName} sheets={table.sheets} source={kind === 'paste' ? 'chatgpt' : kind === 'libby' ? 'libby' : kind} format={kind === 'audible' ? 'audiobook' : undefined}
+          onDone={(c, notes) => onResult(c, kind === 'paste' ? 'text' : kind, `${cfg.title} — ${table.fileName}`, notes)} onCancel={() => { setTable(null); setNames([]); setInfo('') }} />
+      ) : (
+        <>
+          <textarea className="field mt-4 min-h-56 font-mono text-sm" value={text} placeholder={cfg.placeholder} onChange={(e) => { setText(e.target.value); setNames([]); setInfo('') }} aria-label="Book text" />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <input ref={fileRef} type="file" hidden multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,.xlsx,.xls,text/*,application/json" onChange={(e) => { onFiles(e.target.files); e.target.value = '' }} />
+            <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Choose a file…</button>
+            {names.length > 0 && <span className="text-sm text-muted">{names.join(', ')}</span>}
+            <button className="btn btn-primary ml-auto" disabled={!text.trim()} onClick={go}>Find my books</button>
+          </div>
+          {info && <p role="status" className="mt-2 text-xs text-muted">{info}</p>}
+        </>
+      )}
       {err && <p role="alert" className="mt-3 text-sm text-rust">{err}</p>}
       {(kind === 'audible' || kind === 'hoopla') && <p className="mt-6 text-sm">Prefer screenshots? <button className="text-accent underline" onClick={() => switchTo('screenshots')}>Upload screenshots</button></p>}
     </div>

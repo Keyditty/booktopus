@@ -135,7 +135,8 @@ describe('screenshot (OCR) text layout', () => {
 })
 
 import { readFileSync } from 'node:fs'
-import { xlsxToCsv } from '../src/lib/importers/xlsx'
+import { xlsxToCsv, xlsxSheets, bestSheet } from '../src/lib/importers/xlsx'
+import { guessHeaderRow, guessMap, mapRows } from '../src/lib/importers/table'
 
 describe('Excel (.xlsx) import', () => {
   it('reads a real .xlsx, converts date serials, and feeds the Libby importer', async () => {
@@ -152,5 +153,35 @@ describe('Excel (.xlsx) import', () => {
   })
   it('rejects non-Excel files with a friendly error', async () => {
     await expect(xlsxToCsv(new TextEncoder().encode('not a zip at all').buffer as ArrayBuffer)).rejects.toThrow(/Excel/)
+  })
+})
+
+describe('a comic-collection spreadsheet (summary tab first, banner row, no Title column)', () => {
+  const load = async () => { const b = readFileSync(new URL('./fixtures/comics.xlsx', import.meta.url)); return xlsxSheets(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)) }
+  it('reads every tab, with names, and picks the data tab rather than the summary', async () => {
+    const sheets = await load()
+    expect(sheets.map((s) => s.name)).toEqual(['Summary', 'Collection'])
+    expect(bestSheet(sheets).name).toBe('Collection')
+  })
+  it('finds the header row below the banner and guesses the columns', async () => {
+    const rows = bestSheet(await load()).rows
+    const h = guessHeaderRow(rows)
+    expect(rows[h]).toEqual(['Series', 'Issue #', 'Publisher', 'Year', 'Condition', 'Notes'])
+    const map = guessMap(rows[h])
+    expect(map).toMatchObject({ title: 0, issue: 1, publisher: 2, year: 3 }) // Series becomes the title, issue number is kept separately
+  })
+  it('turns rows into comics: "Series #Issue", skipping the blank row', async () => {
+    const rows = bestSheet(await load()).rows
+    const h = guessHeaderRow(rows)
+    const { candidates, skipped } = mapRows(rows, h, guessMap(rows[h]), { source: 'manual', provenance: 'test', comics: true })
+    expect(candidates.map((c) => c.title)).toEqual(['Amazing Spider-Man #1', 'Amazing Spider-Man #2', 'Saga #1', 'Saga #2', 'Batman', 'X-Men #141'])
+    expect(candidates[4].subtitle).toBe('Year One') // a title with a subtitle and no issue number is left alone
+    expect(candidates[0]).toMatchObject({ format: 'comic', year: 1963, seriesNumber: 1 })
+    expect(candidates[0].notes).toContain('Marvel'); expect(skipped).toBe(0)
+  })
+  it('a normal book list with a Title column is mapped directly, with status and rating', () => {
+    const rows = [['Book Title', 'Author', 'Read?', 'My Rating'], ['Circe', 'Madeline Miller', 'yes', '5'], ['Dune', 'Frank Herbert', 'to read', ''], ['', '', '', '']]
+    const { candidates } = mapRows(rows, 0, guessMap(rows[0]), { source: 'chatgpt', provenance: 't' })
+    expect(candidates).toHaveLength(2); expect(candidates[0]).toMatchObject({ title: 'Circe', status: 'finished', rating: 5, authors: ['Madeline Miller'] }); expect(candidates[1].wantToRead).toBe(true)
   })
 })
