@@ -16,7 +16,7 @@ read those pages. Findings below come from web-search summaries and general know
 | Audible | Copied library-page text; CSV/JSON from third-party exporters; screenshots | 🟡 **Working, heuristic** — page text layout not verified |
 | Hoopla | Copied History text; screenshots | 🟡 **Working, heuristic** — page text layout not verified |
 | Add one book by hand | Typed form + live title search (Google Books/Open Library) | ✅ **Working** (form + dedupe tested; live suggestions unverified) |
-| Series & universe lookup | Hardcover (token) then Inventaire (keyless) | 🧪 **Implemented, never run live.** Unit-tested with fake responses shaped from docs/search summaries only. Use Settings → "Test Hardcover / Test Inventaire" from a normal browser; error messages are shown verbatim so schema or CORS problems are visible |
+| Series & universe lookup | Hardcover (token) then Inventaire (keyless) | ✅ **Hardcover confirmed working on the live site** (token test passes on desktop and iPhone; series lists load). 🧪 Inventaire is implemented but not yet confirmed live. Unit-tested with fake responses shaped from docs/search summaries. Use Settings → "Test Hardcover / Test Inventaire" from a normal browser; error messages are shown verbatim so schema or CORS problems are visible |
 | Cover/metadata | Google Books + Open Library | 🟡 **Implemented, unverified live** |
 | AI vision | User's own Anthropic key, opt-in per batch | 🧪 **Experimental** — never run (no key) |
 | Audible/Hoopla/Libby official APIs | — | ⛔ **Blocked / not used** |

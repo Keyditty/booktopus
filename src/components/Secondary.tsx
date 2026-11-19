@@ -112,9 +112,9 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
           <input className="field mt-1 font-normal text-ink" type="password" autoComplete="off" value={s.googleKey} onChange={(e) => upd({ googleKey: e.target.value })} /></label>
       </section>
       <section className="card p-5">
-        <h3 className="text-lg font-bold">Series & universe lookups <span className="ml-1 rounded-full bg-gold px-2 py-0.5 align-middle text-[10px] font-bold uppercase text-[#2b1d12]">Experimental</span></h3>
-        <p className="mt-1 text-sm text-muted">Shows every book in a series (open any book and tap “See the whole series”). Inventaire needs nothing. Hardcover is better for new popular books and needs a free token from hardcover.app/account/api. These haven’t been tested against the live services yet, so use the test buttons.</p>
-        <label className="mt-3 block text-xs font-semibold text-muted" htmlFor="hc-token">Hardcover token (optional)</label>
+        <h3 className="text-lg font-bold">Series &amp; universe lookups</h3>
+        <p className="mt-1 text-sm text-muted">Shows every book in a series (open any book and tap “See the whole series”) and powers the Series tab. <strong>Hardcover</strong> is the best source, especially for new popular books, and needs a free token from hardcover.app/account/api. Inventaire is a keyless backup. Use the test buttons to check each one.</p>
+<label className="mt-3 block text-xs font-semibold text-muted" htmlFor="hc-token">Hardcover token (optional)</label>
         <div className="mt-1 flex gap-2">
           <input id="hc-token" className="field font-normal text-ink" type={showHc ? 'text' : 'password'} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} value={s.hardcoverToken}
             onChange={(e) => upd({ hardcoverToken: e.target.value })} onBlur={(e) => { const c = cleanToken(e.target.value); if (c !== e.target.value) upd({ hardcoverToken: c }) }} />
