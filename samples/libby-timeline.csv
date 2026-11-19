@@ -1,0 +1,5 @@
+title,author,publisher,isbn,timestamp,activity,library,format
+Project Hail Mary,Andy Weir,Audio Up,9781705028001,2025-02-01 10:00:00,Borrowed,City Library,Audiobook
+Project Hail Mary,Andy Weir,Audio Up,9781705028001,2025-02-20 09:00:00,Returned,City Library,Audiobook
+Circe,"Miller, Madeline",Hachette,9780316556347,2025-03-02,Borrowed,City Library,eBook
+Dune,Frank Herbert,Penguin,,2025-03-05,Placed hold,City Library,eBook
