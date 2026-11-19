@@ -6,6 +6,31 @@ import { loadSampleBooks } from '../lib/sample'
 import { VISION_MODEL } from '../lib/settings'
 import type { ImportBatch } from '../types'
 
+export function EraseDialog({ count, onClose }: { count: number; onClose: () => void }) {
+  const [typed, setTyped] = useState('')
+  const [saved, setSaved] = useState(false)
+  const ok = typed.trim().toUpperCase() === 'ERASE'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 fade-in" role="alertdialog" aria-modal="true" aria-labelledby="erase-title" aria-describedby="erase-desc" onClick={onClose}>
+      <div className="card sheet-in w-full max-w-md p-5" style={{ background: 'var(--c-sea)', borderColor: 'var(--c-rust)' }} onClick={(e) => e.stopPropagation()}>
+        <h3 id="erase-title" className="text-xl font-bold text-rust">⚠️ Erase your whole library?</h3>
+        <p id="erase-desc" className="mt-2 text-sm">This permanently deletes all <strong>{count} books</strong>, your ratings, notes, dates, octopus arms, points and import history from this device. <strong>This cannot be undone.</strong> Your goals, name and settings are kept.</p>
+        <div className="mt-4 rounded-xl bg-mist p-3 text-sm">
+          <p className="font-semibold">Strongly recommended: save a backup first.</p>
+          <button className="btn btn-primary mt-2 !min-h-10 text-sm" onClick={async () => { download(`booktopus-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportJson(), 'application/json'); setSaved(true) }}>Download backup (JSON)</button>
+          {saved && <p role="status" className="mt-2 text-xs text-sage">✓ Backup downloaded. Keep that file somewhere safe.</p>}
+        </div>
+        <label className="mt-4 block text-sm font-semibold" htmlFor="erase-confirm">Type <span className="font-mono text-rust">ERASE</span> to confirm</label>
+        <input id="erase-confirm" className="field mt-1" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" />
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button className="btn btn-primary" onClick={onClose}>Keep my library</button>
+          <button className="btn btn-ghost !border-rust text-rust" disabled={!ok} onClick={async () => { await eraseAll(); onClose() }}>Erase everything</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function History({ batches }: { batches: ImportBatch[] }) {
   return (
     <div className="mx-auto max-w-2xl fade-in">
@@ -31,10 +56,12 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
   const [s, setS] = useState(getSettings())
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [erasing, setErasing] = useState(false)
   const upd = (p: Partial<typeof s>) => { setS({ ...s, ...p }); saveSettings(p) }
   const stamp = new Date().toISOString().slice(0, 10)
   return (
     <div className="mx-auto max-w-2xl space-y-6 fade-in">
+      {erasing && <EraseDialog count={bookCount} onClose={() => setErasing(false)} />}
       <h2 className="text-2xl font-bold">Settings &amp; backup</h2>
       <section className="card p-5">
         <h3 className="text-lg font-bold">Your name</h3>
@@ -86,7 +113,7 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goal
         <h3 className="text-lg font-bold">Other</h3>
         <div className="mt-2 flex flex-wrap gap-2">
           <button className="btn btn-ghost" onClick={async () => { await loadSampleBooks(); onChanged() }}>Add sample books</button>
-          <button className="btn btn-ghost !border-rust text-rust" onClick={async () => { if (confirm('Delete your entire library from this device? Download a backup first.')) await eraseAll() }}>Erase library…</button>
+          <button className="btn btn-ghost !border-rust text-rust" onClick={() => setErasing(true)}>Erase library…</button>
         </div>
         <p className="mt-4 text-xs text-muted">Cover images and descriptions: Google Books and Open Library. Text recognition: Tesseract (runs on your device).</p>
       </section>

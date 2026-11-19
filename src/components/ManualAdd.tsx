@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Cover } from './Cover'
+import { GenrePicker } from './GenrePicker'
 import { applyMeta, lookupMeta, searchBooks, type Meta } from '../lib/metadata'
 import { commitImport, planOne, undoBatch } from '../lib/store'
 import { splitAuthors } from '../lib/normalize'
+import { withGenre } from '../lib/genres'
 import { getSettings } from '../lib/settings'
 import type { Book, Candidate, Format, ImportBatch, ReviewItem, SourceName } from '../types'
 
@@ -25,6 +27,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
   const [status, setStatus] = useState('none')
   const [rating, setRating] = useState(0)
   const [notes, setNotes] = useState('')
+  const [genres, setGenres] = useState<string[]>([])
   const [picked, setPicked] = useState<Meta | null>(null)
   const [sugg, setSugg] = useState<Meta[]>([])
   const [searching, setSearching] = useState(false)
@@ -42,7 +45,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
   }, [title, picked])
 
   function pick(m: Meta) {
-    setPicked(m); setTitle(m.title); setAuthor(m.authors.join(', ')); setSugg([])
+    setPicked(m); setTitle(m.title); setAuthor(m.authors.join(', ')); setSugg([]); setGenres((g) => m.genres.reduce(withGenre, g))
   }
 
   function build(): Candidate {
@@ -51,7 +54,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
       title: title.trim(), subtitle: picked?.subtitle, authors: splitAuthors(author), narrator: narrator.trim() || undefined,
       series: series.trim() || undefined, seriesNumber: parseFloat(seriesNo) || undefined,
       format, source, identifiers: { ...(picked?.identifiers ?? {}) }, activity: source === 'audible' ? 'purchased' : 'unknown', events: [],
-      rating: rating || undefined, notes: notes.trim() || undefined, coverUrl: picked?.coverUrl, synopsis: picked?.synopsis, year: picked?.year, genres: picked?.genres,
+      rating: rating || undefined, notes: notes.trim() || undefined, coverUrl: picked?.coverUrl, synopsis: picked?.synopsis, year: picked?.year, genres,
       confidence: 1, provenance: 'Added by hand', enriched: picked ? 'matched' : undefined,
     }
     STATUS.find((s) => s[0] === status)![2](c)
@@ -73,7 +76,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
     } finally { setBusy(false) }
   }
 
-  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setDone(null); setUndone(false); setConflict(null) }
+  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setGenres([]); setDone(null); setUndone(false); setConflict(null) }
 
   if (done) return (
     <div className="card fade-in mx-auto max-w-xl p-8 text-center">
@@ -124,6 +127,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
           <div className="col-span-2"><label className={lbl} htmlFor="m-series">Series</label><input id="m-series" className="field mt-1" value={series} onChange={(e) => setSeries(e.target.value)} placeholder="Optional" /></div>
           <div><label className={lbl} htmlFor="m-sno">Book #</label><input id="m-sno" className="field mt-1" inputMode="decimal" value={seriesNo} onChange={(e) => setSeriesNo(e.target.value)} /></div>
         </div>
+        <div><span className={lbl}>Genres</span><div className="mt-1"><GenrePicker value={genres} onChange={setGenres} known={books.flatMap((b) => b.genres)} /></div></div>
         <fieldset><legend className={lbl}>Where are you with it?</legend>
           <div className="mt-1 flex flex-wrap gap-2">{STATUS.map(([k, l]) => <button key={k} type="button" aria-pressed={status === k} onClick={() => setStatus(k)} className={`btn !min-h-10 !py-1.5 text-sm ${status === k ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>)}</div></fieldset>
         <div><span className={lbl}>My rating</span>

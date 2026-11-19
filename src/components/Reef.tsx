@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
-import { computeStats, POINTS, type Goals } from '../lib/gamify'
+import { computeStats, LEVELS, POINTS, type Goals } from '../lib/gamify'
+import { addToWantList, buildSeeds, notInLibrary, searchLinks, type Seed } from '../lib/discover'
+import { discoverBooks, type Meta } from '../lib/metadata'
 import { suggestions, triviaOfTheDay } from '../lib/insights'
 import { placeOnArm } from '../lib/store'
 import { FORMAT_LABEL, SERVICE_LABEL, type BookView } from '../lib/shelves'
-import type { Format, SourceName } from '../types'
+import type { Book, Format, SourceName } from '../types'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -27,6 +29,8 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
   const years = useMemo(() => [...new Set([String(now.getFullYear()), ...s.perYear.keys()])].sort().reverse(), [s, now])
   const [year, setYear] = useState(String(now.getFullYear()))
   const [showPoints, setShowPoints] = useState(false)
+  const [levelsOpen, setLevelsOpen] = useState(false)
+  const [allGenres, setAllGenres] = useState(false)
   const sugg = useMemo(() => suggestions(views, now), [views, now])
   const monthVals = MONTHS.map((_, i) => s.perMonth.get(`${year}-${String(i + 1).padStart(2, '0')}`) ?? 0)
   const monthMax = Math.max(1, goals.monthly, ...monthVals)
@@ -44,8 +48,8 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
         <div className="flex items-center gap-4">
           <div className="text-5xl" aria-hidden>{lv.emoji}</div>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted">Level {lv.index + 1}</div>
-            <div className="font-display text-2xl font-bold leading-tight">{lv.name}</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">Level {lv.index + 1} of {LEVELS.length}</div>
+            <div className="font-display text-2xl font-bold leading-tight">Level {lv.index + 1} · {lv.name}</div>
             <div className="serif text-lg text-gold">{s.points.toLocaleString()} points</div>
           </div>
         </div>
@@ -53,7 +57,10 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
           <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${lv.progress * 100}%` }} />
         </div>
         <p className="mt-1 text-xs text-muted">{lv.next ? `${lv.toNext} points to ${lv.next.emoji} ${lv.next.name}` : 'You’ve reached the deepest level!'}</p>
-        <button className="mt-2 text-sm text-accent underline" onClick={() => setShowPoints(!showPoints)} aria-expanded={showPoints}>How do I earn points?</button>
+        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+          <button className="text-sm text-accent underline" onClick={() => setLevelsOpen(true)}>See all {LEVELS.length} levels</button>
+          <button className="text-sm text-accent underline" onClick={() => setShowPoints(!showPoints)} aria-expanded={showPoints}>How do I earn points?</button>
+        </div>
         {showPoints && (
           <ul className="fade-in mt-2 space-y-1 text-sm">
             <li>📖 <strong>{POINTS.finish}</strong> for every book you finish ({s.breakdown.reading})</li>
@@ -108,7 +115,9 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
       <section className="card p-5" aria-label="Genres">
         <h3 className="font-bold">By genre</h3>
         <p className="text-xs text-muted">Bright bar = finished, faint bar = on your shelf.</p>
-        {s.genres.length ? s.genres.slice(0, 10).map((g) => <Bar key={g.name} label={g.name} value={g.finished} extra={g.library} max={genreMax} sub={`/${g.library}`} />) : <p className="mt-1 text-sm text-muted">Genres appear once books have been matched online or edited.</p>}
+        {s.genres.length ? s.genres.slice(0, allGenres ? 100 : 10).map((g) => <Bar key={g.name} label={g.name} value={g.finished} extra={g.library} max={genreMax} sub={`/${g.library}`} />) : <p className="mt-1 text-sm text-muted">Genres appear once books have been matched online or edited.</p>}
+        {s.genres.length > 10 && <button className="mt-3 text-sm text-accent underline" onClick={() => setAllGenres(!allGenres)}>{allGenres ? 'Show fewer' : `Show all ${s.genres.length} genres`}</button>}
+        <p className="mt-2 text-xs text-muted">Missing a genre? Open any book and tap “＋ Genre” to add your own, like Romantasy.</p>
         {s.formats.length > 0 && <p className="mt-4 text-sm text-muted">Finished by format: {s.formats.map(([f, n]) => `${FORMAT_LABEL[f as Format]} ${n}`).join(' · ')}</p>}
         {s.services.length > 0 && <p className="mt-1 text-sm text-muted">Finished by service: {s.services.map(([f, n]) => `${SERVICE_LABEL[f as SourceName]} ${n}`).join(' · ')}</p>}
         {s.authors.length > 0 && <p className="mt-1 text-sm text-muted">Favorite authors: {s.authors.map(([a, n]) => `${a} (${n})`).join(' · ')}</p>}
@@ -143,10 +152,91 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
         ) : <p className="mt-1 text-sm text-muted">Finish and rate a few books and I’ll start suggesting what to read next.</p>}
       </section>
 
+      <Discover views={views} />
+
       <section className="card p-5 text-center" aria-label="Trivia">
         <h3 className="font-bold">🐙 Did you know?</h3>
         <p className="serif mt-1 text-lg">{triviaOfTheDay(now)}</p>
       </section>
+
+      {levelsOpen && <LevelsSheet points={s.points} onClose={() => setLevelsOpen(false)} />}
+    </div>
+  )
+}
+
+function LevelsSheet({ points, onClose }: { points: number; onClose: () => void }) {
+  const cur = LEVELS.reduce((a, l, i) => (points >= l.at ? i : a), 0)
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="All levels">
+      <div className="sheet-in card max-h-[85vh] w-full max-w-md overflow-y-auto rounded-b-none p-5 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 className="text-xl font-bold">The ocean ladder</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
+        <p className="mt-1 text-sm text-muted">Earn points by finishing books. Each level is a deeper sea creature. You have <strong className="text-gold">{points.toLocaleString()}</strong> points.</p>
+        <ol className="mt-4 space-y-2">
+          {LEVELS.map((l, i) => {
+            const state = i < cur ? 'done' : i === cur ? 'now' : 'locked'
+            return (
+              <li key={l.name} className={`flex items-center gap-3 rounded-xl border p-3 ${state === 'now' ? 'border-gold bg-mist' : 'border-line'} ${state === 'locked' ? 'opacity-60' : ''}`} aria-current={state === 'now' ? 'step' : undefined}>
+                <span className={`text-3xl ${state === 'locked' ? 'grayscale' : ''}`} aria-hidden>{l.emoji}</span>
+                <span className="min-w-0 flex-1"><span className="block font-display font-bold">Level {i + 1} · {l.name}</span><span className="block text-xs text-muted">{l.at === 0 ? 'Where everyone starts' : `${l.at.toLocaleString()} points`}</span></span>
+                <span className="text-xs font-semibold">{state === 'done' ? '✓ Reached' : state === 'now' ? 'You are here' : `${(l.at - points).toLocaleString()} to go`}</span>
+              </li>
+            )
+          })}
+        </ol>
+        <p className="mt-3 text-xs text-muted">A finished book is worth 100 points. Ratings, notes, new genres, goals and re-reads earn extra.</p>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- Find more: ideas based on what is already on the shelf, ending in a web search or one-tap add ---------- */
+
+function Discover({ views }: { views: BookView[] }) {
+  const books = useMemo(() => views.map((v) => v.book), [views])
+  const seeds = useMemo(() => buildSeeds(books), [books])
+  if (!seeds.length) return null
+  return (
+    <section className="card p-5" aria-label="Find more books">
+      <h3 className="font-bold">Find more to read</h3>
+      <p className="text-xs text-muted">Based on what you’ve loved. Links open a web search in a new tab. “Show ideas” looks up books here using Google Books / Open Library, and only sends the author or genre name.</p>
+      <div className="mt-3 space-y-4">{seeds.map((sd) => <SeedCard key={sd.id} seed={sd} books={books} />)}</div>
+    </section>
+  )
+}
+
+function SeedCard({ seed, books }: { seed: Seed; books: Book[] }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [res, setRes] = useState<Meta[]>([])
+  const [added, setAdded] = useState<Set<string>>(new Set())
+  const canSearch = seed.kind !== 'book'
+  async function load() {
+    setState('loading')
+    const r = await discoverBooks(seed.kind as 'author' | 'genre', seed.value)
+    setRes(notInLibrary(r, books).slice(0, 8)); setState('done')
+  }
+  return (
+    <div className="rounded-xl border border-line p-3">
+      <div className="serif font-semibold">{seed.title}</div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {searchLinks(seed.query).map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost !min-h-9 !px-3 !py-1 text-xs">🔎 {l.label}</a>)}
+        {canSearch && state === 'idle' && <button className="btn btn-primary !min-h-9 !px-3 !py-1 text-xs" onClick={load}>Show ideas here</button>}
+      </div>
+      {state === 'loading' && <p className="mt-2 text-xs text-muted">Looking…</p>}
+      {state === 'done' && !res.length && <p className="mt-2 text-xs text-muted">Couldn’t find ideas right now (you may be offline). The search links above still work.</p>}
+      {res.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {res.map((m, i) => {
+            const k = m.title + i
+            return (
+              <li key={k} className="flex items-center gap-3">
+                <span className="w-10 shrink-0"><Cover title={m.title} author={m.authors[0]} url={m.coverUrl} /></span>
+                <span className="min-w-0 flex-1"><span className="serif block truncate text-sm font-semibold">{m.title}</span><span className="block truncate text-xs text-muted">{m.authors.join(', ')}{m.year ? ` · ${m.year}` : ''}</span></span>
+                <button className="btn btn-ghost !min-h-9 !px-3 !py-1 text-xs" disabled={added.has(k)} onClick={async () => { await addToWantList(m); setAdded(new Set(added).add(k)) }}>{added.has(k) ? '✓ Added' : '＋ Want to read'}</button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

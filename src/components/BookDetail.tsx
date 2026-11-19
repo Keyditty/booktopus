@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Cover } from './Cover'
+import { GenrePicker } from './GenrePicker'
 import { deleteBook, mergeBooks, placeOnArm, readAgain, removeFromArm, setStatus, splitSource, updateBook } from '../lib/store'
 import { assignArms, armMode } from '../lib/arms'
 import { FORMAT_LABEL, SERVICE_COLOR, SERVICE_LABEL, STATUS_LABEL, type BookView } from '../lib/shelves'
@@ -12,6 +13,7 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
   const [notes, setNotes] = useState(b.notes ?? '')
   const [editing, setEditing] = useState(false)
   const [mergeId, setMergeId] = useState('')
+  const [genresOpen, setGenresOpen] = useState(false)
   const [armMsg, setArmMsg] = useState('')
   const layout = assignArms(all.map((x) => x.book))
   const onArm = layout.some((x) => x?.id === b.id)
@@ -46,11 +48,14 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
               {b.series && <p className="mt-1 text-sm text-accent">{b.series}{b.seriesNumber ? ` · Book ${b.seriesNumber}` : ''}</p>}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {v.formats.map((f) => <span key={f} className="rounded-full bg-mist px-2.5 py-0.5 text-xs">{FORMAT_LABEL[f]}</span>)}
-                {b.genres.slice(0, 3).map((g) => <span key={g} className="rounded-full border border-mist px-2.5 py-0.5 text-xs text-muted">{g}</span>)}
+                {b.genres.slice(0, genresOpen ? 0 : 4).map((g) => <span key={g} className="rounded-full border border-mist px-2.5 py-0.5 text-xs text-muted">{g}</span>)}
                 {b.year ? <span className="px-1 py-0.5 text-xs text-muted">{b.year}</span> : null}
+                <button className="rounded-full border border-dashed border-line px-2.5 py-0.5 text-xs text-accent" aria-expanded={genresOpen} onClick={() => setGenresOpen(!genresOpen)}>{genresOpen ? 'Done' : '＋ Genre'}</button>
               </div>
             </div>
           </div>
+
+          {genresOpen && <div className="card fade-in mt-4 p-3"><GenrePicker value={b.genres} known={all.flatMap((x) => x.book.genres)} onChange={(g) => patch({ genres: g })} /></div>}
 
           <section className="mt-6" aria-label="Reading status">
             <div className="flex flex-wrap gap-2">
@@ -121,7 +126,6 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
                   <label key={k} className="block text-xs font-semibold text-muted">{l}<input className="field mt-1 font-normal text-ink" defaultValue={(b[k] as string) ?? ''} onBlur={(e) => e.target.value !== ((b[k] as string) ?? '') && patch({ [k]: e.target.value || undefined } as Partial<Book>)} /></label>
                 ))}
                 <label className="block text-xs font-semibold text-muted">Author(s), separated by semicolons<input className="field mt-1 font-normal text-ink" defaultValue={b.authors.join('; ')} onBlur={(e) => patch({ authors: e.target.value.split(';').map((x) => x.trim()).filter(Boolean) })} /></label>
-                <label className="block text-xs font-semibold text-muted">Genres, separated by semicolons<input className="field mt-1 font-normal text-ink" defaultValue={b.genres.join('; ')} onBlur={(e) => patch({ genres: e.target.value.split(';').map((x) => x.trim()).filter(Boolean) })} /></label>
                 <div className="flex gap-2">
                   <select className="field" value={mergeId} onChange={(e) => setMergeId(e.target.value)} aria-label="Merge with another book">
                     <option value="">Same as another book on my shelf…</option>

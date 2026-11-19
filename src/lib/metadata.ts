@@ -144,3 +144,25 @@ export async function searchBooks(query: string): Promise<Meta[]> {
   const seen = new Set<string>()
   return out.filter((m) => { const k = bookKeyOf(m.title, m.authors); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 6)
 }
+
+/** Find books by an author or in a genre, for the "Find more" ideas. Needs internet; returns [] offline. */
+export async function discoverBooks(kind: 'author' | 'genre', value: string): Promise<Meta[]> {
+  if (!getSettings().lookupOnline) return []
+  const key = getSettings().googleKey
+  const target = { title: value, authors: kind === 'author' ? [value] : [] }
+  const out: Meta[] = []
+  try {
+    const q = kind === 'author' ? `inauthor:"${value}"` : `subject:"${value}"`
+    const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=16&printType=books&langRestrict=en&q=${encodeURIComponent(q)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
+    for (const v of d.items ?? []) { const m = fromGoogle(v, target); if (m) out.push(m) }
+  } catch { /* quota or offline */ }
+  if (out.length < 5) {
+    try {
+      const qs = kind === 'author' ? `author=${encodeURIComponent(value)}` : `subject=${encodeURIComponent(value.toLowerCase())}`
+      const d = await getJson(`https://openlibrary.org/search.json?${qs}&limit=16&fields=key,title,subtitle,author_name,first_publish_year,cover_i,isbn,subject`)
+      for (const x of d.docs ?? []) { const m = fromOpenLibrary(x, target); if (m) out.push(m) }
+    } catch { /* offline */ }
+  }
+  const seen = new Set<string>()
+  return out.filter((m) => { const k = bookKeyOf(m.title, m.authors); if (seen.has(k)) return false; seen.add(k); return true })
+}

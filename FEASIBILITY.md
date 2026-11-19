@@ -51,3 +51,21 @@ GitHub Pages is static hosting, so there is no server: everything runs in the br
 or reading history ever touch a server. Trade-off: no automatic cross-device sync — use Backup/Restore (JSON). The data model is relational
 (books, editions-as-source-records, activity events, import batches) so moving to Postgres + auth later is a mapping exercise, and importers
 are pure functions returning one `Candidate` type, so new adapters plug into the same review/dedupe/commit pipeline.
+
+## Free book / series / "universe" data sources (researched, not yet connected)
+
+Researched via web search only; the build sandbox cannot reach these hosts, so **nothing below has been called or tested**. Details marked (background) are from general knowledge, not verified in this session.
+
+| Source | Cost / key | What it offers | Fit for "every book in a series or universe" |
+|---|---|---|---|
+| [Open Library](https://openlibrary.org/developers/api) (already used) | Free, no key | Works, editions, authors, subjects, covers. Docs say it is not meant as a bulk/high-traffic backend (use monthly data dumps for that) | Weak: series data is inconsistent |
+| [Google Books](https://developers.google.com/books) (already used) | Free, key optional, quota-limited | ~40M volumes, covers, descriptions, categories | Weak: no real series model |
+| [Hardcover](https://docs.hardcover.app) | Free; personal token from account settings (hardcover.app/account/api) | GraphQL at api.hardcover.app/v1/graphql. Community guides report 60 requests/min, 30s timeout, max query depth 3, and entities for Books, Editions, Authors and **Series**. Older sources call it early-access | **Best candidate** for series, plus modern popular titles. Needs a token per user (or our own server proxy). Check terms before commercial use |
+| [Inventaire](https://wiki.inventaire.io/wiki/Entities_data) | Free, open (CC0 data), Wikidata-linked | Works, **series** (a series is a list of works), editions, authors; API docs at api.inventaire.io | Good and keyless, but coverage of very new/popular titles may be patchy |
+| Wikidata (background) | Free, no key | SPARQL queries; "part of the series" and series-ordinal properties | Possible, but complex and uneven for recent books |
+| NYT Books API | Free key | Bestseller lists and reviews. Current status not confirmed in search results | Good for "trending" ideas, not series |
+| Gutendex / Project Gutenberg | Free | Public-domain books only | Classics only |
+| Goodreads | One directory lists it as free; (background) it stopped issuing new API keys years ago | — | Treat as unavailable |
+| Audible, Libby/OverDrive, Hoopla | No public patron APIs | — | See sections above |
+
+**Recommendation:** add an optional "Series & universe" adapter using Hardcover (best data) with Inventaire as a keyless fallback, behind the same Candidate pipeline. First step is a live test from a normal browser (not this sandbox) to confirm CORS, rate limits and coverage for the genres Toni reads (e.g. romantasy).

@@ -46,10 +46,14 @@ export default function App() {
   const shown = useMemo(() => applyAll(views, shelf, q, filters, sort), [views, shelf, q, filters, sort])
   const counts = useMemo(() => Object.fromEntries(SHELVES.map((s) => [s.id, views.filter((v) => inShelf(v, s.id)).length])), [views])
   // celebrate: compare points before/after each change to the library (skipped on first load)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     if (loading) return
     const now = computeStats(views, goals)
-    if (prevStats.current) { const msg = diffMessage(prevStats.current, now); if (msg) { setToast(msg); const t = setTimeout(() => setToast(null), 5500); prevStats.current = now; return () => clearTimeout(t) } }
+    if (prevStats.current) {
+      const msg = diffMessage(prevStats.current, now)
+      if (msg) { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(null), 5500) }
+    }
     prevStats.current = now
   }, [views, goals, loading])
   const open = openId ? views.find((v) => v.book.id === openId) : undefined
