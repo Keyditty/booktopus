@@ -1,114 +1,232 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
-import { setStatus } from '../lib/store'
+import { ARM_COUNT, armMode, assignArms } from '../lib/arms'
+import { placeOnArm, removeFromArm, setStatus } from '../lib/store'
 import type { BookView } from '../lib/shelves'
+import type { Book } from '../types'
 
-const TOP_X = [50, 150, 250, 350] // arm targets in the 400-wide band, matching the 4 columns
+/* ---------- geometry: everything lives in one 400 x 640 drawing so it scales as a unit ---------- */
+const W = 400, H = 640
+const BW = 84, BH = 126, TOPY = 8
+const BOTY = H - TOPY - BH
+const COLS = [50, 150, 250, 350]
 
-function arm(tx: number, up: boolean) {
-  const H = 140, hy = up ? 72 : 68
-  const y = (v: number) => (up ? v : H - v)
-  const sway = (tx - 200) * 0.35
-  return `M200 ${hy} C ${200 + sway * 0.2} ${y(46)}, ${tx - sway * 0.6} ${y(86)}, ${tx} ${y(0)}`
+type Pt = [number, number]
+
+/** Smooth curve through points (Catmull-Rom), returned as samples. */
+function curve(pts: Pt[], per = 12): Pt[] {
+  const p = [pts[0], ...pts, pts[pts.length - 1]]
+  const out: Pt[] = []
+  for (let i = 1; i < p.length - 2; i++) {
+    for (let k = 0; k < per; k++) {
+      const t = k / per, t2 = t * t, t3 = t2 * t
+      out.push([0, 1].map((d) => 0.5 * ((2 * p[i][d]) + (-p[i - 1][d] + p[i + 1][d]) * t + (2 * p[i - 1][d] - 5 * p[i][d] + 4 * p[i + 1][d] - p[i + 2][d]) * t2 + (-p[i - 1][d] + 3 * p[i][d] - 3 * p[i + 1][d] + p[i + 2][d]) * t3)) as Pt)
+    }
+  }
+  out.push(pts[pts.length - 1])
+  return out
 }
 
-function Arm({ tx, up, i }: { tx: number; up: boolean; i: number }) {
-  const d = arm(tx, up)
-  const props = { fill: 'none', strokeLinecap: 'round' as const, vectorEffect: 'non-scaling-stroke' as const }
+/** Control points for the arm that holds slot i. Top row arms rise from the head; bottom row mirrors them. */
+function armPoints(i: number): Pt[] {
+  const up = i < 4
+  const tx = COLS[i % 4]
+  const dx = tx - 200
+  const dir = dx < 0 ? -1 : 1
+  const wig = (i % 2 ? 1 : -1) * 16
+  const pts: Pt[] = [
+    [200 + dx * 0.15, 322], [200 + dx * 0.48, 268], [200 + dx * 0.92 + wig, 210],
+    [tx - wig * 0.4, 168], [tx + dir * 14, 138], [tx + dir * 28, 122], [tx + dir * 22, 108],
+  ]
+  return up ? pts : pts.map(([x, y]) => [x, H - y] as Pt)
+}
+
+function armShape(pts: Pt[]) {
+  const s = curve(pts)
+  const n = s.length
+  const L: Pt[] = [], R: Pt[] = [], suck: { x: number; y: number; r: number }[] = []
+  s.forEach((p, k) => {
+    const a = s[Math.max(0, k - 1)], b = s[Math.min(n - 1, k + 1)]
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1
+    const nx = -dy / len, ny = dx / len
+    const t = k / (n - 1)
+    const w = 3 + 25 * Math.pow(1 - t, 1.15)
+    L.push([p[0] + (nx * w) / 2, p[1] + (ny * w) / 2]); R.push([p[0] - (nx * w) / 2, p[1] - (ny * w) / 2])
+    if (k % 5 === 2 && t > 0.14 && t < 0.97 && w > 4.5) suck.push({ x: p[0] + nx * w * 0.12, y: p[1] + ny * w * 0.12, r: Math.max(1.3, w * 0.24) })
+  })
+  const f = (q: Pt) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`
+  const d = `M${f(L[0])} ` + L.slice(1).map((q) => `L${f(q)}`).join(' ') + ' ' + R.reverse().map((q) => `L${f(q)}`).join(' ') + ' Z'
+  return { d, suck }
+}
+
+const SPOTS = (() => {
+  let seed = 7
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
+  return Array.from({ length: 26 }, () => ({ x: 140 + rnd() * 120, y: 205 + rnd() * 160, r: 2 + rnd() * 5, o: 0.18 + rnd() * 0.3, light: rnd() > 0.55 }))
+})()
+
+function Arm({ i }: { i: number }) {
+  const { d, suck } = useMemo(() => armShape(armPoints(i)), [i])
   return (
-    <g className="arm" style={{ animationDelay: `${i * -0.7}s` }}>
-      <path d={d} stroke="#4b2a8f" strokeWidth={15} {...props} />
-      <path d={d} stroke="#7b52d6" strokeWidth={10} {...props} />
-      <path d={d} stroke="#ffd9f0" strokeWidth={3.5} strokeDasharray="0 11" {...props} />
+    <g className="arm" style={{ animationDelay: `${i * -0.8}s` }}>
+      <path d={d} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.6} strokeLinejoin="round" />
+      {suck.map((s, k) => <g key={k}><circle cx={s.x} cy={s.y} r={s.r} fill="#ffd9ea" stroke="#c77aa6" strokeWidth={0.7} /><circle cx={s.x} cy={s.y} r={s.r * 0.45} fill="#e9a3c6" /></g>)}
     </g>
   )
 }
 
-function Head() {
+function Eye({ cx }: { cx: number }) {
+  const cy = 326
   return (
-    <svg viewBox="0 0 120 112" className="h-[104px] w-[112px] drop-shadow-[0_6px_14px_rgba(0,0,0,.45)] sm:h-[124px] sm:w-[134px]" role="img" aria-label="A friendly octopus wearing reading glasses">
-      <defs>
-        <radialGradient id="mantle" cx="40%" cy="30%" r="80%"><stop offset="0" stopColor="#a47df2" /><stop offset="0.6" stopColor="#7b52d6" /><stop offset="1" stopColor="#4b2a8f" /></radialGradient>
-      </defs>
-      <path d="M12 72 C4 28 38 2 60 2 C82 2 116 28 108 72 C105 92 90 100 60 100 C30 100 15 92 12 72 Z" fill="url(#mantle)" />
-      <circle cx="30" cy="30" r="4" fill="#c7aaff" opacity=".6" /><circle cx="84" cy="22" r="3" fill="#c7aaff" opacity=".6" /><circle cx="94" cy="40" r="2.5" fill="#c7aaff" opacity=".6" />
-      <ellipse cx="30" cy="76" rx="8" ry="5" fill="#ff8fb8" opacity=".55" /><ellipse cx="90" cy="76" rx="8" ry="5" fill="#ff8fb8" opacity=".55" />
-      <g className="blink"><circle cx="42" cy="62" r="12" fill="#fff" /><circle cx="78" cy="62" r="12" fill="#fff" />
-        <circle cx="43" cy="66" r="6" fill="#1c1240" /><circle cx="77" cy="66" r="6" fill="#1c1240" />
-        <circle cx="45" cy="63" r="2" fill="#fff" /><circle cx="79" cy="63" r="2" fill="#fff" /></g>
-      <circle cx="42" cy="62" r="16" fill="none" stroke="#f6c667" strokeWidth="2.6" /><circle cx="78" cy="62" r="16" fill="none" stroke="#f6c667" strokeWidth="2.6" />
-      <path d="M57 60 Q60 56 63 60" fill="none" stroke="#f6c667" strokeWidth="2.6" />
-      <path d="M52 86 Q60 92 68 86" fill="none" stroke="#2a1458" strokeWidth="2.6" strokeLinecap="round" />
-    </svg>
+    <g>
+      <ellipse cx={cx} cy={cy} rx={25} ry={23} fill="#4a2284" />
+      <g className="blink">
+        <circle cx={cx} cy={cy} r={19} fill="url(#iris)" />
+        <rect x={cx - 12} y={cy - 3.5} width={24} height={7} rx={3.5} fill="#170c2b" />
+        <circle cx={cx - 14} cy={cy - 12} r={0} />
+        <circle cx={cx + 6} cy={cy - 7} r={4} fill="#fff" opacity={0.95} /><circle cx={cx - 7} cy={cy + 7} r={2} fill="#fff" opacity={0.7} />
+      </g>
+      {/* relaxed upper lid gives the friendly, sleepy-kind look */}
+      <path d={`M${cx - 25} ${cy - 6} C ${cx - 20} ${cy - 34}, ${cx + 20} ${cy - 34}, ${cx + 25} ${cy - 6} C ${cx + 12} ${cy - 20}, ${cx - 12} ${cy - 20}, ${cx - 25} ${cy - 6} Z`} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.4} />
+    </g>
   )
 }
 
-function Slot({ v, onOpen, onEmpty }: { v?: BookView; onOpen: (id: string) => void; onEmpty: () => void }) {
-  if (!v) return (
-    <button onClick={onEmpty} className="slot-empty flex aspect-[2/3] w-full flex-col items-center justify-center gap-1 text-xs" aria-label="Free arm. Pick a book to read">
-      <span className="text-2xl leading-none" aria-hidden>＋</span><span>Free arm</span>
-    </button>
-  )
-  const b = v.book
+function Body() {
   return (
-    <button onClick={() => onOpen(b.id)} className="slot block w-full text-left" title={b.title} aria-label={`${b.title}, reading now. Open details`}>
-      <Cover title={b.title} author={b.authors[0]} url={b.coverUrl} />
-    </button>
+    <g>
+      <clipPath id="bodyclip"><ellipse cx={206} cy={272} rx={57} ry={76} transform="rotate(8 206 272)" /><ellipse cx={200} cy={325} rx={72} ry={52} /></clipPath>
+      <ellipse cx={206} cy={272} rx={57} ry={76} transform="rotate(8 206 272)" fill="url(#skin)" stroke="#4a2284" strokeWidth={1.8} />
+      <ellipse cx={200} cy={325} rx={72} ry={52} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.8} />
+      {/* blend the seam between mantle and head */}
+      <ellipse cx={203} cy={298} rx={58} ry={24} fill="url(#skin)" />
+      <g clipPath="url(#bodyclip)">
+        {SPOTS.map((s, i) => <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={s.light ? '#e7c8ff' : '#4a2284'} opacity={s.o} />)}
+        <ellipse cx={186} cy={238} rx={20} ry={36} transform="rotate(-18 186 238)" fill="#fff" opacity={0.2} />
+      </g>
+      <Eye cx={168} /><Eye cx={232} />
+      <ellipse cx={146} cy={356} rx={13} ry={7} fill="#ff8fb8" opacity={0.4} /><ellipse cx={254} cy={356} rx={13} ry={7} fill="#ff8fb8" opacity={0.4} />
+      <path d="M185 362 Q200 376 215 362" fill="none" stroke="#3a1670" strokeWidth={3.2} strokeLinecap="round" />
+    </g>
   )
 }
+
+/* ---------------------------------- the scene ---------------------------------- */
 
 export function Octopus({ views, onOpen, allViews }: { views: BookView[]; onOpen: (id: string) => void; allViews: BookView[] }) {
-  const [picking, setPicking] = useState(false)
-  const reading = useMemo(() => views.filter((v) => v.book.status === 'in_progress').sort((a, b) => (b.book.startedAt ?? b.book.updatedAt).localeCompare(a.book.startedAt ?? a.book.updatedAt)), [views])
-  const arms = Array.from({ length: 8 }, (_, i) => reading[i])
-  const extra = Math.max(0, reading.length - 8)
-  const slots = (from: number) => (
-    <div className="grid grid-cols-4 gap-3 sm:gap-7">{arms.slice(from, from + 4).map((v, i) => <Slot key={from + i} v={v} onOpen={onOpen} onEmpty={() => setPicking(true)} />)}</div>
-  )
+  const [free, setFree] = useState<number | null>(null)
+  const [held, setHeld] = useState<Book | null>(null)
+  const arms = useMemo(() => assignArms(views.map((v) => v.book)), [views])
+  const readingN = arms.filter((b) => b && armMode(b) === 'reading').length
+  const queuedN = arms.filter((b) => b && armMode(b) === 'queued').length
+  const slotBox = (i: number) => ({ left: `${((COLS[i % 4] - BW / 2) / W) * 100}%`, top: `${((i < 4 ? TOPY : BOTY) / H) * 100}%`, width: `${(BW / W) * 100}%`, height: `${(BH / H) * 100}%` })
+
   return (
-    <section className="card fade-in mx-auto mt-6 max-w-xl px-4 pb-5 pt-4 sm:px-8" aria-label="What the octopus is reading">
+    <section className="mx-auto mt-5 w-full max-w-[460px] fade-in" aria-label="The octopus's eight books">
       <div className="text-center">
         <h2 className="text-lg font-bold sm:text-xl">Eight arms, eight books</h2>
-        <p className="serif text-sm text-muted">{reading.length === 0 ? 'Your octopus is waiting for a story. Tap a free arm to start one.' : `Reading ${Math.min(reading.length, 8)} of 8 right now${extra ? ` (+${extra} more on the Reading shelf)` : ''}`}</p>
+        <p className="serif text-sm text-muted">{readingN} reading now · {queuedN} up next · {ARM_COUNT - readingN - queuedN} free</p>
       </div>
-      <div className="mt-4">{slots(0)}</div>
-      <div className="relative -my-1 h-[130px] sm:h-[150px]">
-        <svg viewBox="0 0 400 140" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
-          {TOP_X.map((x, i) => <Arm key={'u' + x} tx={x} up i={i} />)}
-          {TOP_X.map((x, i) => <Arm key={'d' + x} tx={x} up={false} i={i + 4} />)}
+      <div className="relative mx-auto mt-3 w-full" style={{ aspectRatio: `${W} / ${H}` }}>
+        {arms.map((b, i) => (
+          <div key={i} className="absolute" style={{ ...slotBox(i), transform: `rotate(${i % 2 ? 2.2 : -2.2}deg)` }}>
+            {b ? <HeldBook b={b} view={views.find((v) => v.book.id === b.id)!} onClick={() => setHeld(b)} /> : (
+              <button onClick={() => setFree(i)} className="slot-empty flex h-full w-full flex-col items-center justify-center gap-1 text-[11px]" aria-label="Free arm. Pick a book">
+                <span className="text-xl leading-none" aria-hidden>＋</span><span>Free arm</span>
+              </button>
+            )}
+          </div>
+        ))}
+        <svg viewBox={`0 0 ${W} ${H}`} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" role="img" aria-label="A friendly octopus holding eight books with its arms">
+          <defs>
+            <linearGradient id="skin" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stopColor="#c58af0" /><stop offset="0.55" stopColor="#9a55d6" /><stop offset="1" stopColor="#6c33b3" /></linearGradient>
+            <radialGradient id="iris" cx="45%" cy="40%" r="70%"><stop offset="0" stopColor="#ffe08a" /><stop offset="0.7" stopColor="#f0a53a" /><stop offset="1" stopColor="#c9701c" /></radialGradient>
+          </defs>
+          {Array.from({ length: 8 }, (_, i) => <Arm key={i} i={i} />)}
+          <Body />
         </svg>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"><Head /></div>
       </div>
-      {slots(4)}
-      {picking && <Picker views={allViews} onClose={() => setPicking(false)} />}
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted">
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-accent" /> Reading now</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm bg-gold" /> Up next</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border border-dashed border-line" /> Free arm</span>
+      </div>
+      {free !== null && <Picker views={allViews} slot={free} onClose={() => setFree(null)} />}
+      {held && <ArmSheet b={held} onOpen={() => { onOpen(held.id); setHeld(null) }} onClose={() => setHeld(null)} />}
     </section>
   )
 }
 
-function Picker({ views, onClose }: { views: BookView[]; onClose: () => void }) {
+function HeldBook({ b, view, onClick }: { b: Book; view: BookView; onClick: () => void }) {
+  const reading = armMode(b) === 'reading'
+  void view
+  return (
+    <button onClick={onClick} className="slot block h-full w-full text-left" title={b.title} aria-label={`${b.title}, ${reading ? 'reading now' : 'up next'}. Options`}
+      style={reading ? { boxShadow: '0 0 0 3px var(--c-accent), 0 0 22px var(--glow)', borderRadius: 6 } : { outline: '2px dashed var(--c-gold)', outlineOffset: 2, borderRadius: 6 }}>
+      <Cover title={b.title} author={b.authors[0]} url={b.coverUrl} className={reading ? '' : 'saturate-[.8]'} />
+      <span className={`absolute left-0 top-1.5 rounded-r-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${reading ? 'bg-accent text-onaccent' : 'bg-gold text-[#2b1d12]'}`}>{reading ? 'Reading' : 'Up next'}</span>
+    </button>
+  )
+}
+
+function Sheet({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label: string }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={label}>
+      <div className="sheet-in card max-h-[82vh] w-full max-w-md overflow-y-auto rounded-b-none p-4 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>{children}</div>
+    </div>
+  )
+}
+
+function ArmSheet({ b, onOpen, onClose }: { b: Book; onOpen: () => void; onClose: () => void }) {
+  const reading = armMode(b) === 'reading'
+  const act = (fn: () => Promise<unknown>) => async () => { await fn(); onClose() }
+  return (
+    <Sheet onClose={onClose} label={b.title}>
+      <div className="flex items-center gap-3">
+        <span className="w-14 shrink-0"><Cover title={b.title} author={b.authors[0]} url={b.coverUrl} /></span>
+        <div className="min-w-0"><div className="serif truncate text-lg font-bold">{b.title}</div><div className="truncate text-sm text-muted">{b.authors[0]}</div>
+          <div className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${reading ? 'bg-accent text-onaccent' : 'bg-gold text-[#2b1d12]'}`}>{reading ? 'Reading now' : 'Up next'}</div></div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {reading
+          ? <button className="btn btn-ghost" onClick={act(() => placeOnArm(b.id, 'queued'))}>↩ Move back to Up next</button>
+          : <button className="btn btn-primary" onClick={act(() => placeOnArm(b.id, 'reading'))}>📖 Start reading</button>}
+        <button className="btn btn-ghost" onClick={act(() => setStatus(b.id, 'finished'))}>✅ I finished it</button>
+        <button className="btn btn-ghost" onClick={onOpen}>See details</button>
+        <button className="btn btn-ghost !border-rust text-rust" onClick={act(() => removeFromArm(b.id))}>Free this arm</button>
+      </div>
+    </Sheet>
+  )
+}
+
+function Picker({ views, slot, onClose }: { views: BookView[]; slot: number; onClose: () => void }) {
   const [q, setQ] = useState('')
+  const [mode, setMode] = useState<'reading' | 'queued'>('queued')
   const list = useMemo(() => {
     const rank = (v: BookView) => (v.book.wantToRead ? 0 : v.book.status === 'unknown' || v.book.status === 'not_started' ? 1 : 2)
-    return views.filter((v) => v.book.status !== 'in_progress' && (!q || (v.book.title + ' ' + v.book.authors.join(' ')).toLowerCase().includes(q.toLowerCase())))
+    const onArm = new Set(assignArms(views.map((v) => v.book)).filter(Boolean).map((b) => b!.id))
+    return views.filter((v) => !onArm.has(v.book.id) && v.book.status !== 'finished' && v.book.status !== 'dnf' && (!q || (v.book.title + ' ' + v.book.authors.join(' ')).toLowerCase().includes(q.toLowerCase())))
       .sort((a, b) => rank(a) - rank(b) || a.book.title.localeCompare(b.book.title)).slice(0, 40)
   }, [views, q])
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="Choose a book to read">
-      <div className="sheet-in card max-h-[80vh] w-full max-w-md overflow-y-auto rounded-b-none p-4 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-lg font-bold">Which book next?</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
-        <input className="field mt-3" placeholder="Search your shelf" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
-        <ul className="mt-3 space-y-1">
-          {list.map((v) => (
-            <li key={v.book.id}>
-              <button className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-mist" onClick={async () => { await setStatus(v.book.id, 'in_progress'); onClose() }}>
-                <span className="w-9 shrink-0"><Cover title={v.book.title} author={v.book.authors[0]} url={v.book.coverUrl} /></span>
-                <span className="min-w-0"><span className="serif block truncate font-semibold">{v.book.title}</span><span className="block truncate text-xs text-muted">{v.book.authors[0]}{v.book.wantToRead ? ' · want to read' : ''}</span></span>
-              </button>
-            </li>
-          ))}
-          {!list.length && <li className="p-4 text-center text-sm text-muted">No other books on your shelf yet.</li>}
-        </ul>
+    <Sheet onClose={onClose} label="Choose a book for this arm">
+      <div className="flex items-center justify-between"><h3 className="text-lg font-bold">Give this arm a book</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
+      <div className="mt-3 flex gap-2" role="radiogroup" aria-label="How will you read it">
+        <button role="radio" aria-checked={mode === 'queued'} className={`btn flex-1 !min-h-10 text-sm ${mode === 'queued' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setMode('queued')}>Up next</button>
+        <button role="radio" aria-checked={mode === 'reading'} className={`btn flex-1 !min-h-10 text-sm ${mode === 'reading' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setMode('reading')}>Reading now</button>
       </div>
-    </div>
+      <input className="field mt-3" placeholder="Search your shelf" value={q} onChange={(e) => setQ(e.target.value)} />
+      <ul className="mt-3 space-y-1">
+        {list.map((v) => (
+          <li key={v.book.id}>
+            <button className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-mist" onClick={async () => { await placeOnArm(v.book.id, mode, slot); onClose() }}>
+              <span className="w-9 shrink-0"><Cover title={v.book.title} author={v.book.authors[0]} url={v.book.coverUrl} /></span>
+              <span className="min-w-0"><span className="serif block truncate font-semibold">{v.book.title}</span><span className="block truncate text-xs text-muted">{v.book.authors[0]}{v.book.wantToRead ? ' · want to read' : ''}</span></span>
+            </button>
+          </li>
+        ))}
+        {!list.length && <li className="p-4 text-center text-sm text-muted">No other books on your shelf yet.</li>}
+      </ul>
+    </Sheet>
   )
 }

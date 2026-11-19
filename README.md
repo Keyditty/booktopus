@@ -7,7 +7,8 @@ and your reading history never leaves your device.
 **Read [FEASIBILITY.md](FEASIBILITY.md)** for what works, what's experimental, and what's blocked (and what could *not* be verified).
 
 ## What you can do
-- A friendly octopus holds up to **eight books at once** (one per arm) — your "currently reading" set. Tap a free arm to pick the next one.
+- **Home** screen: greeting, then a friendly octopus whose **eight arms each hold a book** — either *Reading now* (glowing teal outline) or *Up next* (dashed gold outline), so you never forget what you meant to read next. Tap a free arm to give it a book; tap a held book to start it, finish it, or free the arm. Below are shelf rows (recently added, want to read, finished lately, favorites, borrowed).
+- **Library** tab: the full cover grid with search, filters and sorting.
 - Two color themes: **Deep Sea** (dark) and **Sunlit Lagoon** (light) — switch from the ⋯ menu or Settings.
 - Browse covers on a driftwood-shelf grid; shelves: All, Reading, Finished, Want to Read, Borrowed, Favorites, Did Not Finish.
 - Search title / author / narrator / series; filter by service, status, genre, format, author, series, rating; sort.

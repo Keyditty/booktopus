@@ -39,6 +39,8 @@ export interface Book {
   statusSource: 'import' | 'user' // imports never override a user-set status
   wantToRead: boolean
   favorite: boolean
+  /** which of the octopus's 8 arms (0-7) holds this book; reading vs up-next is derived from status */
+  arm?: number
   rating?: number // 1-5
   notes?: string
   startedAt?: string

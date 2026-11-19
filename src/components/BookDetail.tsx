@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Cover } from './Cover'
-import { deleteBook, mergeBooks, readAgain, setStatus, splitSource, updateBook } from '../lib/store'
+import { deleteBook, mergeBooks, placeOnArm, readAgain, removeFromArm, setStatus, splitSource, updateBook } from '../lib/store'
+import { assignArms, armMode } from '../lib/arms'
 import { FORMAT_LABEL, SERVICE_COLOR, SERVICE_LABEL, STATUS_LABEL, type BookView } from '../lib/shelves'
 import type { ActivityEvent, Book } from '../types'
 
@@ -11,6 +12,10 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
   const [notes, setNotes] = useState(b.notes ?? '')
   const [editing, setEditing] = useState(false)
   const [mergeId, setMergeId] = useState('')
+  const [armMsg, setArmMsg] = useState('')
+  const layout = assignArms(all.map((x) => x.book))
+  const onArm = layout.some((x) => x?.id === b.id)
+  const queued = onArm && armMode(b) === 'queued'
   useEffect(() => setNotes(b.notes ?? ''), [b.id, b.notes])
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -50,10 +55,13 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
           <section className="mt-6" aria-label="Reading status">
             <div className="flex flex-wrap gap-2">
               {stBtn('Want to read', b.wantToRead, () => patch({ wantToRead: !b.wantToRead }), '🔖')}
+              {stBtn('Up next', queued, async () => { setArmMsg(''); if (queued) await removeFromArm(b.id); else if (!(await placeOnArm(b.id, 'queued'))) setArmMsg('All eight arms are busy. Free one on the Home screen first.') }, '🐙')}
               {stBtn('Reading', b.status === 'in_progress', () => setStatus(b.id, b.status === 'in_progress' ? 'unknown' : 'in_progress'), '📖')}
               {stBtn('Finished', b.status === 'finished', () => setStatus(b.id, b.status === 'finished' ? 'unknown' : 'finished'), '✅')}
               {stBtn('Didn’t finish', b.status === 'dnf', () => setStatus(b.id, b.status === 'dnf' ? 'unknown' : 'dnf'), '⏸')}
             </div>
+            {armMsg && <p role="alert" className="mt-2 text-sm text-rust">{armMsg}</p>}
+            {b.status === 'in_progress' && !onArm && <p className="mt-2 text-xs text-muted">All eight octopus arms are busy, so this one is only on your Reading shelf.</p>}
             <p className="mt-2 text-xs text-muted">
               {b.status === 'unknown' ? 'Not marked yet — tap one above. Borrowing or buying a book doesn’t count as reading it.' : `Status: ${STATUS_LABEL[b.status]}${b.statusSource === 'user' ? '' : ' (from an import — tap to confirm or change)'}`}
             </p>

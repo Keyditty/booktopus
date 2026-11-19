@@ -1,4 +1,5 @@
 import { db } from './db'
+import { assignArms } from './arms'
 import { bestMatch, AUTO_MERGE, POSSIBLE } from './match'
 import { bookKeyOf, hashStr, newId } from './normalize'
 import type { ActivityEvent, Book, Candidate, ImportBatch, ReviewCategory, ReviewItem, SourceActivity, SourceEntry, SourceRecord } from '../types'
@@ -224,6 +225,45 @@ export async function setStatus(id: string, status: Book['status']) {
   if (status === 'in_progress') { b.startedAt = b.startedAt || today; b.wantToRead = false }
   if (status === 'finished') { b.finishedAt = b.finishedAt || today; b.wantToRead = false }
   if (status === 'dnf') b.wantToRead = false
+  if (status !== 'in_progress') b.arm = undefined // finishing, dropping or un-marking frees the octopus arm
+  b.updatedAt = now()
+  await db.books.put(b)
+  if (status === 'in_progress') await placeOnArm(id, 'reading')
+  notify()
+}
+
+/**
+ * Put a book on one of the octopus's eight arms, either "reading" now or "queued" (up next).
+ * Returns false if all eight arms are already busy.
+ */
+export async function placeOnArm(id: string, mode: 'reading' | 'queued', slot?: number): Promise<boolean> {
+  const all = await db.books.toArray()
+  const b = all.find((x) => x.id === id)
+  if (!b) return false
+  const layout = assignArms(all)
+  let idx = layout.findIndex((x) => x?.id === id)
+  if (idx < 0) {
+    idx = slot !== undefined && !layout[slot] ? slot : layout.findIndex((x) => !x)
+    if (idx < 0) return false
+  }
+  for (let i = 0; i < layout.length; i++) { const x = layout[i]; if (x && x.id !== id && x.arm !== i) await db.books.update(x.id, { arm: i }) }
+  b.arm = idx
+  b.statusSource = 'user'
+  if (mode === 'reading') { b.status = 'in_progress'; b.startedAt = b.startedAt || now().slice(0, 10); b.wantToRead = false }
+  else { b.wantToRead = true; if (b.status === 'in_progress') b.status = 'not_started'; if (b.status === 'unknown') b.status = 'not_started' }
+  b.updatedAt = now()
+  await db.books.put(b)
+  notify()
+  return true
+}
+
+export async function removeFromArm(id: string) {
+  const b = await db.books.get(id)
+  if (!b) return
+  const layout = assignArms(await db.books.toArray())
+  for (let i = 0; i < layout.length; i++) { const x = layout[i]; if (x && x.id !== id && x.arm !== i) await db.books.update(x.id, { arm: i }) }
+  b.arm = undefined
+  if (b.status === 'in_progress') b.status = 'unknown'
   b.updatedAt = now()
   await db.books.put(b)
   notify()

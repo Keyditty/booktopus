@@ -1,5 +1,5 @@
 import type { Candidate, Format, ReadingStatus, SourceName } from '../types'
-import { commitImport, planImport } from './store'
+import { commitImport, planImport, placeOnArm } from './store'
 import { db } from './db'
 
 type S = [string, string, string, Format, SourceName, ReadingStatus | 'want' | 'fav', string, string?, string?]
@@ -36,5 +36,11 @@ export async function loadSampleBooks() {
   // Project Hail Mary also on Libby as an ebook: shows one book with two sources
   cands.push({ ...cands[0], source: 'libby', format: 'ebook', activity: 'returned', status: undefined, favorite: false, events: [{ type: 'borrowed', date: '2025-02-01' }, { type: 'returned', date: '2025-02-20' }] })
   const items = planImport(cands, await db.books.toArray()).map((i) => ({ ...i, include: true }))
-  return commitImport(items, { adapter: 'sample', label: 'Sample books' })
+  const batch = await commitImport(items, { adapter: 'sample', label: 'Sample books' })
+  // show the octopus doing its job: two books being read, a few waiting up next
+  const byTitle = async (t: string) => (await db.books.toArray()).find((b) => b.title === t)?.id
+  for (const [t, mode] of [['Little Fires Everywhere', 'reading'], ['The Midnight Library', 'reading'], ['Station Eleven', 'queued'], ['The Hobbit', 'queued'], ['Atomic Habits', 'queued']] as const) {
+    const id = await byTitle(t); if (id) await placeOnArm(id, mode)
+  }
+  return batch
 }

@@ -3,7 +3,7 @@ import { BookCard } from './components/BookCard'
 import { BookDetail } from './components/BookDetail'
 import { FilterBar } from './components/FilterBar'
 import { ImportFlow, type ImportKind } from './components/ImportFlow'
-import { Octopus } from './components/Octopus'
+import { Home } from './components/Home'
 import { SeaFx } from './components/Bubbles'
 import { History, SettingsView, Stats } from './components/Secondary'
 import { useLibrary } from './lib/useLibrary'
@@ -11,9 +11,10 @@ import { getSettings, saveSettings, type ThemeName } from './lib/settings'
 import { NO_FILTERS, SHELVES, applyAll, inShelf, type Filters, type ShelfId, type SortKey } from './lib/shelves'
 import { loadSampleBooks } from './lib/sample'
 
-type View = 'shelf' | 'import' | 'history' | 'settings' | 'stats'
+type View = 'home' | 'shelf' | 'import' | 'history' | 'settings' | 'stats'
 const VIEWS: View[] = ['shelf', 'import', 'history', 'settings', 'stats']
-const readHash = (): View => { const h = location.hash.replace('#', '') as View; return VIEWS.includes(h) ? h : 'shelf' }
+/** 'shelf' is the Library tab (#library); the default screen with no hash is Home. */
+const readHash = (): View => { const h = location.hash.replace('#', ''); return h === 'library' ? 'shelf' : VIEWS.includes(h as View) ? (h as View) : 'home' }
 
 export default function App() {
   const { data, views, loading } = useLibrary()
@@ -30,22 +31,20 @@ export default function App() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
   useEffect(() => { const h = () => setViewState(readHash()); window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
-  const go = (v: View, kind: ImportKind = 'hub', pre = '') => { setMenu(false); setOpenId(null); if (v === 'import') { setImportKind(kind); setPrefill(pre) } location.hash = v === 'shelf' ? '' : v; setViewState(v) }
+  const go = (v: View, kind: ImportKind = 'hub', pre = '') => { setMenu(false); setOpenId(null); if (v === 'import') { setImportKind(kind); setPrefill(pre) } location.hash = v === 'home' ? '' : v === 'shelf' ? 'library' : v; setViewState(v) }
   const switchTheme = (t: ThemeName) => { setTheme(t); saveSettings({ theme: t }) }
 
   const shown = useMemo(() => applyAll(views, shelf, q, filters, sort), [views, shelf, q, filters, sort])
   const counts = useMemo(() => Object.fromEntries(SHELVES.map((s) => [s.id, views.filter((v) => inShelf(v, s.id)).length])), [views])
   const open = openId ? views.find((v) => v.book.id === openId) : undefined
   const searching = q.trim().length > 0
-  const filtering = Object.values(filters).some(Boolean)
-  const showOctopus = !loading && views.length > 0 && !searching && !filtering && (shelf === 'all' || shelf === 'current')
-
+  
   return (
     <>
       <SeaFx />
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-5 sm:px-6">
         <header className="flex items-center gap-3">
-          <button onClick={() => go('shelf')} className="flex items-center gap-3 text-left" aria-label="Booktopus home">
+          <button onClick={() => go('home')} className="flex items-center gap-3 text-left" aria-label="Booktopus home">
             <img src="./icon.svg" alt="" className="h-11 w-11 rounded-xl shadow" />
             <span><span className="block font-display text-xl font-bold leading-none tracking-wide sm:text-3xl">Booktopus</span><span className="serif text-sm italic text-muted">Toni’s underwater library</span></span>
           </button>
@@ -64,14 +63,32 @@ export default function App() {
           </div>
         </header>
 
-        {view === 'shelf' && (
+        {(view === 'home' || view === 'shelf') && (
           <main className="mt-5">
             <div className="relative">
-              <input type="search" className="field !rounded-full !pl-11" placeholder="Search title, author, narrator, series" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search your library" />
+              <input type="search" className="field !rounded-full !pl-11" placeholder="Search title, author, narrator, series" value={q}
+                onChange={(e) => { setQ(e.target.value); if (e.target.value && view === 'home') go('shelf') }} aria-label="Search your library" />
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden>🔍</span>
             </div>
-            {showOctopus && <Octopus views={views} allViews={views} onOpen={setOpenId} />}
-            <nav className="scroll-x -mx-4 mt-5 flex gap-2 px-4 sm:mx-0 sm:px-0" aria-label="Shelves">
+            <div className="mt-4 flex justify-center gap-2" role="tablist" aria-label="Main">
+              {([['home', '🐙 Home'], ['shelf', '📚 Library']] as const).map(([v, l]) => (
+                <button key={v} role="tab" aria-selected={view === v} onClick={() => go(v)} className={`btn !min-h-10 !py-1.5 text-sm ${view === v ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
+              ))}
+            </div>
+          </main>
+        )}
+
+        {view === 'home' && (
+          <main className="mt-5">
+            {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
+              : views.length === 0 ? <Welcome onImport={() => go('import')} onManual={() => go('import', 'manual')} />
+              : <Home views={views} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
+          </main>
+        )}
+
+        {view === 'shelf' && (
+          <main className="mt-2">
+            <nav className="scroll-x -mx-4 mt-3 flex gap-2 px-4 sm:mx-0 sm:px-0" aria-label="Shelves">
               {SHELVES.map((s) => (
                 <button key={s.id} onClick={() => setShelf(s.id)} aria-current={shelf === s.id} title={s.label}
                   className={`btn shrink-0 !min-h-10 !py-1.5 text-sm ${shelf === s.id ? 'btn-primary' : 'btn-ghost'}`}>{s.short} <span className="opacity-70">{counts[s.id] ?? 0}</span></button>
@@ -100,13 +117,13 @@ export default function App() {
           </main>
         )}
 
-        {view !== 'shelf' && (
+        {view !== 'shelf' && view !== 'home' && (
           <main className="mt-6">
-            <button className="mb-4 text-sm text-accent underline" onClick={() => go('shelf')}>← My bookshelf</button>
-            {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('shelf')} prefill={prefill} />}
+            <button className="mb-4 text-sm text-accent underline" onClick={() => go('home')}>← Home</button>
+            {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('home')} prefill={prefill} />}
             {view === 'history' && <History batches={data?.batches ?? []} />}
-            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('shelf')} onTheme={switchTheme} />}
-            {view === 'stats' && <Stats views={views} onOpen={(id) => { go('shelf'); setOpenId(id) }} />}
+            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} />}
+            {view === 'stats' && <Stats views={views} onOpen={(id) => { go('home'); setOpenId(id) }} />}
           </main>
         )}
 
