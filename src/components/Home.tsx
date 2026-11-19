@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { Octopus } from './Octopus'
+import { Portal } from './Portal'
 import { SeriesCard, useSeriesGroups } from './SeriesView'
 import { placeOnArm, setStatus } from '../lib/store'
 import { computeStats, type Goals } from '../lib/gamify'
@@ -93,25 +94,27 @@ export function Home({ views, name, goals, onReef, onSeries, onOpen, onShelf, on
 function SurpriseSheet({ pick, onClose, onAgain, onOpen }: { pick: BookView | 'none'; onClose: () => void; onAgain: (id: string) => void; onOpen: (id: string) => void }) {
   const b = pick === 'none' ? null : pick.book
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="Surprise pick">
-      <div className="sheet-in card w-full max-w-sm rounded-b-none p-5 text-center sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
-        {!b ? (
-          <><div className="text-4xl" aria-hidden>🎲</div><p className="mt-2">Nothing to pick from yet. Mark a few books as Want to read and try again.</p><button className="btn btn-primary mt-4" onClick={onClose}>Close</button></>
-        ) : (
-          <>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gold">{b.wantToRead ? 'From your Want to read pile' : 'From books you haven’t started'}</p>
-            <button className="mx-auto mt-3 block w-32" onClick={() => onOpen(b.id)} aria-label={`Open ${b.title}`}><Cover title={b.title} author={b.authors[0]} url={b.coverUrl} /></button>
-            <h3 className="serif mt-3 text-xl font-bold leading-tight">{b.title}</h3>
-            <p className="text-sm text-muted">{b.authors.join(', ')}</p>
-            <div className="mt-4 grid gap-2">
-              <button className="btn btn-primary" onClick={async () => { await setStatus(b.id, 'in_progress'); onClose() }}>📖 Start reading it</button>
-              <button className="btn btn-ghost" onClick={async () => { await placeOnArm(b.id, 'queued'); onClose() }}>🐙 Put it Up next</button>
-              <button className="btn btn-ghost" onClick={() => onAgain(b.id)}>🎲 Pick another</button>
-            </div>
-            <button className="mt-3 text-sm text-muted underline" onClick={onClose}>Not now</button>
-          </>
-        )}
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="Surprise pick">
+        <div className="sheet-in card w-full max-w-sm rounded-b-none p-5 text-center sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
+          {!b ? (
+            <><div className="text-4xl" aria-hidden>🎲</div><p className="mt-2">Nothing to pick from yet. Mark a few books as Want to read and try again.</p><button className="btn btn-primary mt-4" onClick={onClose}>Close</button></>
+          ) : (
+            <>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gold">{b.wantToRead ? 'From your Want to read pile' : 'From books you haven’t started'}</p>
+              <button className="mx-auto mt-3 block w-32" onClick={() => onOpen(b.id)} aria-label={`Open ${b.title}`}><Cover title={b.title} author={b.authors[0]} url={b.coverUrl} /></button>
+              <h3 className="serif mt-3 text-xl font-bold leading-tight">{b.title}</h3>
+              <p className="text-sm text-muted">{b.authors.join(', ')}</p>
+              <div className="mt-4 grid gap-2">
+                <button className="btn btn-primary" onClick={async () => { await setStatus(b.id, 'in_progress'); onClose() }}>📖 Start reading it</button>
+                <button className="btn btn-ghost" onClick={async () => { await placeOnArm(b.id, 'queued'); onClose() }}>🐙 Put it Up next</button>
+                <button className="btn btn-ghost" onClick={() => onAgain(b.id)}>🎲 Pick another</button>
+              </div>
+              <button className="mt-3 text-sm text-muted underline" onClick={onClose}>Not now</button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </Portal>
   )
 }

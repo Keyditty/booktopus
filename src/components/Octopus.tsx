@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
+import { Portal } from './Portal'
 import { ARM_COUNT, armMode, assignArms } from '../lib/arms'
 import { placeOnArm, removeFromArm, setStatus } from '../lib/store'
 import type { BookView } from '../lib/shelves'
@@ -184,9 +185,11 @@ function HeldBook({ b, view, onClick }: { b: Book; view: BookView; onClick: () =
 
 function Sheet({ children, onClose, label }: { children: React.ReactNode; onClose: () => void; label: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={label}>
-      <div className="sheet-in card max-h-[82vh] w-full max-w-md overflow-y-auto rounded-b-none p-4 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>{children}</div>
-    </div>
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label={label}>
+        <div className="sheet-in card max-h-[82vh] w-full max-w-md overflow-y-auto rounded-b-none p-4 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>{children}</div>
+      </div>
+    </Portal>
   )
 }
 

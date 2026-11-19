@@ -68,3 +68,15 @@ export function buildSeriesGroups(books: Book[], lookups: Map<string, SeriesResu
   const rank = { 'in-progress': 0, 'not-started': 1, complete: 2 } as const
   return groups.sort((a, b) => rank[a.state] - rank[b.state] || b.finished - a.finished || a.name.localeCompare(b.name))
 }
+
+/** Series data sometimes lists the same book twice (movie tie-in, other edition). Keep one per normalized title, preferring the one with a cover. */
+export function dedupeSeriesBooks<T extends { title: string; coverUrl?: string; position?: number }>(books: T[]): T[] {
+  const out: T[] = []
+  for (const b of books) {
+    const k = normTitle(b.title)
+    const i = out.findIndex((x) => normTitle(x.title) === k)
+    if (i < 0) out.push(b)
+    else if (!out[i].coverUrl && b.coverUrl) out[i] = { ...b, position: out[i].position ?? b.position }
+  }
+  return out
+}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { freshDb } from './helpers'
 import { db } from '../src/lib/db'
-import { buildSeriesGroups, matchOwned } from '../src/lib/seriesTracker'
+import { buildSeriesGroups, dedupeSeriesBooks, matchOwned } from '../src/lib/seriesTracker'
 import { cacheSeries, cachedSeries } from '../src/lib/series'
 import { addSource, commitImport, deleteSource, loadLibrary, planImport, splitSource, updateSource } from '../src/lib/store'
 import type { Book, Candidate } from '../src/types'
@@ -44,6 +44,10 @@ describe('series tracker', () => {
   it('matchOwned accepts an exact title when the series data has no authors', () => {
     expect(matchOwned({ title: 'Iron Flame', authors: [] }, [book({ title: 'Iron Flame', authors: ['Rebecca Yarros'] })])).toBeTruthy()
     expect(matchOwned({ title: 'Iron Flame', authors: [] }, [book({ title: 'Something Else' })])).toBeUndefined()
+  })
+  it('collapses the same book listed twice (movie tie-in), keeping the one with a cover', () => {
+    const r = dedupeSeriesBooks([{ title: 'I Hope They Serve Beer in Hell', position: 1 }, { title: 'I Hope They Serve Beer In Hell (movie tie-in)', position: 1, coverUrl: 'c.jpg' }, { title: 'Assholes Finish First', position: 2 }])
+    expect(r.map((x) => x.title)).toEqual(['I Hope They Serve Beer In Hell (movie tie-in)', 'Assholes Finish First']); expect(r[0].coverUrl).toBe('c.jpg')
   })
   it('caches series lookups under the series name (ignoring "series"/"trilogy")', async () => {
     await cacheSeries({ name: 'The Empyrean Series', provider: 'hardcover', books: [{ title: 'Fourth Wing', authors: [] }] })

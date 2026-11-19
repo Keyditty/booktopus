@@ -1,6 +1,7 @@
 import { db } from './db'
 import { getSettings } from './settings'
 import { normTitle, similarity } from './normalize'
+import { dedupeSeriesBooks } from './seriesTracker'
 
 /**
  * "Every book in a series" lookups. Two optional sources:
@@ -53,7 +54,8 @@ function mapHardcoverSeries(rows: any[], wanted: string): SeriesResult | null {
     position: typeof x.position === 'number' ? x.position : undefined, title: x.book.title, year: x.book.release_year ?? undefined,
     coverUrl: x.book.cached_image?.url, authors: (Array.isArray(x.book.cached_contributors) ? x.book.cached_contributors : []).map((c: any) => c?.author?.name).filter(Boolean),
   })).sort((a: SeriesBook, b: SeriesBook) => (a.position ?? 1e9) - (b.position ?? 1e9))
-  return books.length ? { name: best.name, provider: 'hardcover', books } : null
+  const unique = dedupeSeriesBooks(books)
+  return unique.length ? { name: best.name, provider: 'hardcover', books: unique } : null
 }
 
 async function hcSeriesByExactName(token: string, name: string): Promise<SeriesResult | null> {
@@ -128,7 +130,8 @@ export async function inventaireSeries(q: SeriesQuery): Promise<SeriesResult | n
     return { position: Number.isFinite(ord) ? ord : undefined, title: invLabel(e) || String(p.uri), authors: [], year: undefined, coverUrl: e?.image?.url ? (String(e.image.url).startsWith('http') ? e.image.url : `https://inventaire.io${e.image.url}`) : undefined }
   }).filter((b) => b.title && !b.title.startsWith('wd:') && !b.title.startsWith('inv:'))
     .sort((a, b) => (a.position ?? 1e9) - (b.position ?? 1e9))
-  return books.length ? { name: seriesName ?? q.series ?? `${q.title} series`, provider: 'inventaire', books } : null
+  const unique = dedupeSeriesBooks(books)
+  return unique.length ? { name: seriesName ?? q.series ?? `${q.title} series`, provider: 'inventaire', books: unique } : null
 }
 
 /* ---------------- cache (so the tracker doesn't hit the network every time) ---------------- */

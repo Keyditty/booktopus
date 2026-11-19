@@ -1,5 +1,3 @@
-// Browser smoke test #2: editing where a book lives, the series tracker, series saved from a lookup, Surprise me (Inventaire is faked).
-// Run like e2e/smoke.cjs but on port 4183:  npx vite preview --port 4183 &  then  NODE_PATH=$(npm root -g) node e2e/features.cjs
 const { chromium } = require('playwright'); const S = process.argv[2] || require('os').tmpdir(); let pass = 0, fail = 0
 const ck = (name, cond, extra = '') => { cond ? pass++ : fail++; console.log(`${cond ? 'PASS' : 'FAIL'}  ${name}${cond ? '' : '   <-- ' + extra}`) }
 const J = (o) => ({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) })
@@ -41,6 +39,10 @@ const J = (o) => ({ status: 200, contentType: 'application/json', headers: { 'ac
   ck('2a series card shows Test Saga with 1 finished, 2 on shelf', /Test Saga/.test(sv) && /1 finished · 2 on your shelf/.test(sv), sv.slice(0, 200))
   ck('2b gap detected: Book 2 is the next one up, not on shelf', /Next up · Book 2/i.test(sv) && /Not on your shelf yet/.test(sv), sv.slice(0, 300))
   await p.screenshot({ path: S + '/s-series.png' })
+  await p.getByRole('button', { name: 'All books' }).first().click(); await p.waitForSelector('[aria-label="Whole series"]'); await p.waitForTimeout(500)
+  const box = await p.locator('[aria-label="Whole series"]').boundingBox(); const top = await p.evaluate(() => { const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight - 10); return !!el && !!el.closest('[aria-label="Whole series"]') })
+  ck('2x series popup covers the whole screen (not trapped inside its card) and is on top', Math.round(box.width) === 390 && Math.round(box.height) === 844 && top, JSON.stringify(box) + ' top=' + top)
+  await p.screenshot({ path: S + '/s-popup.png' }); await p.getByRole('button', { name: 'Close' }).click(); await p.waitForTimeout(300)
   await go(''); await p.waitForTimeout(500); ck('2c Home shows Keep going row', await p.getByText('Keep going').count() > 0)
 
   // 3. series saved from a lookup (Inventaire mocked): books w/o series get tagged

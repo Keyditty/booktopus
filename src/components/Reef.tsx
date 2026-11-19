@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
+import { Portal } from './Portal'
 import { computeStats, LEVELS, POINTS, type Goals } from '../lib/gamify'
 import { addToWantList, buildSeeds, notInLibrary, searchLinks, type Seed } from '../lib/discover'
 import { discoverBooks, type Meta } from '../lib/metadata'
@@ -186,25 +187,27 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
 function LevelsSheet({ books, points, onClose }: { books: number; points: number; onClose: () => void }) {
   const cur = LEVELS.reduce((a, l, i) => (books >= l.at ? i : a), 0)
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="All levels">
-      <div className="sheet-in card max-h-[85vh] w-full max-w-md overflow-y-auto rounded-b-none p-5 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between"><h3 className="text-xl font-bold">The ocean ladder</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
-        <p className="mt-1 text-sm text-muted">Levels are earned by <strong>finishing books</strong>. Each level is a deeper sea creature, and the climb gets steeper, up to the Kraken at 1,000 books. You’ve finished <strong className="text-gold">{books.toLocaleString()}</strong>.</p>
-        <ol className="mt-4 space-y-2">
-          {LEVELS.map((l, i) => {
-            const state = i < cur ? 'done' : i === cur ? 'now' : 'locked'
-            return (
-              <li key={l.name} className={`flex items-center gap-3 rounded-xl border p-3 ${state === 'now' ? 'border-gold bg-mist' : 'border-line'} ${state === 'locked' ? 'opacity-60' : ''}`} aria-current={state === 'now' ? 'step' : undefined}>
-                <span className={`text-3xl ${state === 'locked' ? 'grayscale' : ''}`} aria-hidden>{l.emoji}</span>
-                <span className="min-w-0 flex-1"><span className="block font-display font-bold">Level {i + 1} · {l.name}</span><span className="block text-xs text-muted">{l.at === 0 ? 'Where everyone starts' : `${l.at.toLocaleString()} books finished`}</span></span>
-                <span className="text-xs font-semibold">{state === 'done' ? '✓ Reached' : state === 'now' ? 'You are here' : `${(l.at - books).toLocaleString()} to go`}</span>
-              </li>
-            )
-          })}
-        </ol>
-        <p className="mt-3 text-xs text-muted">Points are a separate score: a finished book is worth 100, and ratings, notes, new genres, goals and re-reads earn extra. You have {points.toLocaleString()} points.</p>
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 fade-in sm:items-center" onClick={onClose} role="dialog" aria-modal="true" aria-label="All levels">
+        <div className="sheet-in card max-h-[85vh] w-full max-w-md overflow-y-auto rounded-b-none p-5 sm:rounded-b-2xl" style={{ background: 'var(--c-sea)' }} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between"><h3 className="text-xl font-bold">The ocean ladder</h3><button className="text-sm text-accent underline" onClick={onClose}>Close</button></div>
+          <p className="mt-1 text-sm text-muted">Levels are earned by <strong>finishing books</strong>. Each level is a deeper sea creature, and the climb gets steeper, up to the Kraken at 1,000 books. You’ve finished <strong className="text-gold">{books.toLocaleString()}</strong>.</p>
+          <ol className="mt-4 space-y-2">
+            {LEVELS.map((l, i) => {
+              const state = i < cur ? 'done' : i === cur ? 'now' : 'locked'
+              return (
+                <li key={l.name} className={`flex items-center gap-3 rounded-xl border p-3 ${state === 'now' ? 'border-gold bg-mist' : 'border-line'} ${state === 'locked' ? 'opacity-60' : ''}`} aria-current={state === 'now' ? 'step' : undefined}>
+                  <span className={`text-3xl ${state === 'locked' ? 'grayscale' : ''}`} aria-hidden>{l.emoji}</span>
+                  <span className="min-w-0 flex-1"><span className="block font-display font-bold">Level {i + 1} · {l.name}</span><span className="block text-xs text-muted">{l.at === 0 ? 'Where everyone starts' : `${l.at.toLocaleString()} books finished`}</span></span>
+                  <span className="text-xs font-semibold">{state === 'done' ? '✓ Reached' : state === 'now' ? 'You are here' : `${(l.at - books).toLocaleString()} to go`}</span>
+                </li>
+              )
+            })}
+          </ol>
+          <p className="mt-3 text-xs text-muted">Points are a separate score: a finished book is worth 100, and ratings, notes, new genres, goals and re-reads earn extra. You have {points.toLocaleString()} points.</p>
+        </div>
       </div>
-    </div>
+    </Portal>
   )
 }
 

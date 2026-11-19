@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { download, eraseAll, exportCsv, exportJson, restoreJson } from '../lib/export'
+import { Portal } from './Portal'
 import { getSettings, saveSettings, type ThemeName } from '../lib/settings'
 import { undoBatch } from '../lib/store'
 import { loadSampleBooks } from '../lib/sample'
@@ -12,23 +13,25 @@ export function EraseDialog({ count, onClose }: { count: number; onClose: () => 
   const [saved, setSaved] = useState(false)
   const ok = typed.trim().toUpperCase() === 'ERASE'
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 fade-in" role="alertdialog" aria-modal="true" aria-labelledby="erase-title" aria-describedby="erase-desc" onClick={onClose}>
-      <div className="card sheet-in w-full max-w-md p-5" style={{ background: 'var(--c-sea)', borderColor: 'var(--c-rust)' }} onClick={(e) => e.stopPropagation()}>
-        <h3 id="erase-title" className="text-xl font-bold text-rust">⚠️ Erase your whole library?</h3>
-        <p id="erase-desc" className="mt-2 text-sm">This permanently deletes all <strong>{count} books</strong>, your ratings, notes, dates, octopus arms, points and import history from this device. <strong>This cannot be undone.</strong> Your goals, name and settings are kept.</p>
-        <div className="mt-4 rounded-xl bg-mist p-3 text-sm">
-          <p className="font-semibold">Strongly recommended: save a backup first.</p>
-          <button className="btn btn-primary mt-2 !min-h-10 text-sm" onClick={async () => { download(`booktopus-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportJson(), 'application/json'); setSaved(true) }}>Download backup (JSON)</button>
-          {saved && <p role="status" className="mt-2 text-xs text-sage">✓ Backup downloaded. Keep that file somewhere safe.</p>}
-        </div>
-        <label className="mt-4 block text-sm font-semibold" htmlFor="erase-confirm">Type <span className="font-mono text-rust">ERASE</span> to confirm</label>
-        <input id="erase-confirm" className="field mt-1" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" />
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
-          <button className="btn btn-primary" onClick={onClose}>Keep my library</button>
-          <button className="btn btn-ghost !border-rust text-rust" disabled={!ok} onClick={async () => { await eraseAll(); onClose() }}>Erase everything</button>
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 fade-in" role="alertdialog" aria-modal="true" aria-labelledby="erase-title" aria-describedby="erase-desc" onClick={onClose}>
+        <div className="card sheet-in w-full max-w-md p-5" style={{ background: 'var(--c-sea)', borderColor: 'var(--c-rust)' }} onClick={(e) => e.stopPropagation()}>
+          <h3 id="erase-title" className="text-xl font-bold text-rust">⚠️ Erase your whole library?</h3>
+          <p id="erase-desc" className="mt-2 text-sm">This permanently deletes all <strong>{count} books</strong>, your ratings, notes, dates, octopus arms, points and import history from this device. <strong>This cannot be undone.</strong> Your goals, name and settings are kept.</p>
+          <div className="mt-4 rounded-xl bg-mist p-3 text-sm">
+            <p className="font-semibold">Strongly recommended: save a backup first.</p>
+            <button className="btn btn-primary mt-2 !min-h-10 text-sm" onClick={async () => { download(`booktopus-backup-${new Date().toISOString().slice(0, 10)}.json`, await exportJson(), 'application/json'); setSaved(true) }}>Download backup (JSON)</button>
+            {saved && <p role="status" className="mt-2 text-xs text-sage">✓ Backup downloaded. Keep that file somewhere safe.</p>}
+          </div>
+          <label className="mt-4 block text-sm font-semibold" htmlFor="erase-confirm">Type <span className="font-mono text-rust">ERASE</span> to confirm</label>
+          <input id="erase-confirm" className="field mt-1" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" />
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <button className="btn btn-primary" onClick={onClose}>Keep my library</button>
+            <button className="btn btn-ghost !border-rust text-rust" disabled={!ok} onClick={async () => { await eraseAll(); onClose() }}>Erase everything</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Portal>
   )
 }
 
