@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeGenre, withGenre } from '../src/lib/genres'
-import { buildSeeds, notInLibrary, searchLinks } from '../src/lib/discover'
+import { buildSeeds, makeSeed, notInLibrary, searchLinks } from '../src/lib/discover'
 import type { Book } from '../src/types'
 
 let n = 0
@@ -38,6 +38,12 @@ describe('discovery', () => {
       { title: 'Galatea', authors: ['Madeline Miller'], genres: [], identifiers: {}, score: 1, provider: 'google' },
     ], owned)
     expect(res.map((r) => r.title)).toEqual(['Galatea'])
+  })
+  it('turns what she types into a search, for any author, genre/mood or book', () => {
+    expect(makeSeed('genre', '  spicy   fantasy ', 'x')).toMatchObject({ kind: 'genre', value: 'spicy fantasy', title: 'More “spicy fantasy”', query: 'best spicy fantasy books' })
+    expect(makeSeed('author', 'Sarah J. Maas', 'x')!.query).toBe('Sarah J. Maas books')
+    expect(makeSeed('book', 'A Court of Thorns and Roses', 'x')!.query).toBe('books like A Court of Thorns and Roses')
+    expect(makeSeed('genre', ' a ', 'x')).toBeNull() // too short to search
   })
   it('makes safe search links', () => {
     const l = searchLinks('books like Circe & more')

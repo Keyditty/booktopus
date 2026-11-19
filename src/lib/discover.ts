@@ -15,6 +15,15 @@ export const googleUrl = (q: string) => searchLinks(q)[0].url
 
 export interface Seed { id: string; kind: 'author' | 'genre' | 'book'; title: string; value: string; query: string }
 
+/** A search the reader typed herself. kind: an author, a genre/mood, or "books like" a title she loved. */
+export function makeSeed(kind: Seed['kind'], raw: string, id: string): Seed | null {
+  const value = raw.replace(/\s+/g, ' ').trim()
+  if (value.length < 2) return null
+  if (kind === 'author') return { id, kind, value, title: `More by ${value}`, query: `${value} books` }
+  if (kind === 'genre') return { id, kind, value, title: `More “${value}”`, query: `best ${value} books` }
+  return { id, kind, value, title: `Books like “${value}”`, query: `books like ${value}` }
+}
+
 /** Choose what to explore from the library: favourite author, favourite genre, and a book she loved. */
 export function buildSeeds(books: Book[]): Seed[] {
   const done = books.filter((b) => b.status === 'finished' || b.readings.length)

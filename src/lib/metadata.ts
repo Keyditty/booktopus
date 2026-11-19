@@ -164,6 +164,13 @@ export async function discoverBooks(kind: 'author' | 'genre', value: string): Pr
       for (const x of d.docs ?? []) { const m = fromOpenLibrary(x, target); if (m) out.push(m) }
     } catch { /* offline */ }
   }
+  if (out.length < 5 && kind === 'genre') {
+    // a mood or made-up genre ("spicy fantasy", "romantasy") is rarely an official subject heading: fall back to a plain keyword search
+    try {
+      const d = await getJson(`https://www.googleapis.com/books/v1/volumes?maxResults=16&printType=books&langRestrict=en&orderBy=relevance&q=${encodeURIComponent(value)}${key ? `&key=${encodeURIComponent(key)}` : ''}`)
+      for (const v of d.items ?? []) { const m = fromGoogle(v, target); if (m) out.push(m) }
+    } catch { /* offline */ }
+  }
   const seen = new Set<string>()
   return out.filter((m) => { const k = bookKeyOf(m.title, m.authors); if (seen.has(k)) return false; seen.add(k); return true })
 }

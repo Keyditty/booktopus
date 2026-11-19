@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Cover } from './Cover'
 import { Portal } from './Portal'
 import { computeStats, LEVELS, POINTS, type Goals } from '../lib/gamify'
-import { addToWantList, buildSeeds, notInLibrary, searchLinks, type Seed } from '../lib/discover'
+import { addToWantList, buildSeeds, makeSeed, notInLibrary, searchLinks, type Seed } from '../lib/discover'
 import { discoverBooks, type Meta } from '../lib/metadata'
 import { suggestions, triviaOfTheDay } from '../lib/insights'
 import { placeOnArm, updateBook } from '../lib/store'
@@ -263,17 +263,44 @@ function LevelsSheet({ books, points, onClose }: { books: number; points: number
 function Discover({ views }: { views: BookView[] }) {
   const books = useMemo(() => views.map((v) => v.book), [views])
   const seeds = useMemo(() => buildSeeds(books), [books])
-  if (!seeds.length) return null
+  const [mode, setMode] = useState<Seed['kind']>('genre')
+  const [text, setText] = useState('')
+  const [mine, setMine] = useState<Seed[]>([])
+  const myGenres = useMemo(() => { const m = new Map<string, number>(); for (const b of books) for (const g of b.genres) m.set(g, (m.get(g) ?? 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map((x) => x[0]) }, [books])
+  const add = (kind: Seed['kind'], value: string) => {
+    const sd = makeSeed(kind, value, `c${Date.now()}`)
+    if (!sd) return
+    setMine((xs) => [sd, ...xs.filter((x) => !(x.kind === sd.kind && x.value.toLowerCase() === sd.value.toLowerCase()))].slice(0, 6))
+    setText('')
+  }
+  const PLACEHOLDER = { author: 'e.g. Sarah J. Maas', genre: 'e.g. romantasy, cozy mystery, spicy fantasy', book: 'e.g. A Court of Thorns and Roses' } as const
+  const MODES: [Seed['kind'], string][] = [['genre', '🏷️ Genre or mood'], ['author', '✍️ Author'], ['book', '📖 Books like…']]
   return (
     <section className="card p-5" aria-label="Find more books">
       <h3 className="font-bold">Find more to read</h3>
-      <p className="text-xs text-muted">Based on what you’ve loved. Links open a web search in a new tab. “Show ideas” looks up books here using Google Books / Open Library, and only sends the author or genre name.</p>
-      <div className="mt-3 space-y-4">{seeds.map((sd) => <SeedCard key={sd.id} seed={sd} books={books} />)}</div>
+      <p className="text-xs text-muted">Tell me what you’re after. Links open a web search in a new tab. “Show ideas here” looks up books using Google Books / Open Library and only sends the words you typed.</p>
+      <form className="mt-3" onSubmit={(e) => { e.preventDefault(); add(mode, text) }}>
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="What are you looking for">
+          {MODES.map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={mode === k} onClick={() => setMode(k)} className={`btn !min-h-9 !px-3 !py-1 text-xs ${mode === k ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>)}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <input className="field flex-1" value={text} onChange={(e) => setText(e.target.value)} placeholder={PLACEHOLDER[mode]} aria-label="What do you want to find?" />
+          <button type="submit" className="btn btn-primary" disabled={text.trim().length < 2}>Find</button>
+        </div>
+      </form>
+      {myGenres.length > 0 && (
+        <div className="mt-3"><span className="text-xs text-muted">Or try one of your genres:</span>
+          <div className="mt-1 flex flex-wrap gap-1.5">{myGenres.map((g) => <button key={g} type="button" className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted hover:bg-mist hover:text-ink" onClick={() => add('genre', g)}>{g}</button>)}</div></div>
+      )}
+      <div className="mt-4 space-y-4">
+        {mine.map((sd) => <SeedCard key={sd.id} seed={sd} books={books} onRemove={() => setMine((xs) => xs.filter((x) => x.id !== sd.id))} />)}
+        {seeds.length > 0 && <><h4 className="pt-1 text-xs font-bold uppercase tracking-wide text-muted">Based on your shelf</h4>{seeds.map((sd) => <SeedCard key={sd.id} seed={sd} books={books} />)}</>}
+      </div>
     </section>
   )
 }
 
-function SeedCard({ seed, books }: { seed: Seed; books: Book[] }) {
+function SeedCard({ seed, books, onRemove }: { seed: Seed; books: Book[]; onRemove?: () => void }) {
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [res, setRes] = useState<Meta[]>([])
   const [added, setAdded] = useState<Set<string>>(new Set())
@@ -285,7 +312,7 @@ function SeedCard({ seed, books }: { seed: Seed; books: Book[] }) {
   }
   return (
     <div className="rounded-xl border border-line p-3">
-      <div className="serif font-semibold">{seed.title}</div>
+      <div className="flex items-start justify-between gap-2"><div className="serif font-semibold">{seed.title}</div>{onRemove && <button className="text-xs text-muted underline" onClick={onRemove} aria-label={`Remove ${seed.title}`}>Remove</button>}</div>
       <div className="mt-2 flex flex-wrap gap-2">
         {searchLinks(seed.query).map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="btn btn-ghost !min-h-9 !px-3 !py-1 text-xs">🔎 {l.label}</a>)}
         {canSearch && state === 'idle' && <button className="btn btn-primary !min-h-9 !px-3 !py-1 text-xs" onClick={load}>Show ideas here</button>}

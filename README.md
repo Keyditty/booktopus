@@ -15,6 +15,7 @@ and your reading history never leaves your device.
 - **Two searches**: 📚 My library vs 🌐 Find any book (title, author or ISBN; add to Want to Read, mark "I have it", see the whole series).
 - **Series lookup (experimental)**: every book in a series via Hardcover (free token) or Inventaire (no key), with "Test connection" buttons in Settings.
 - **Spice level** 🌶 0-5 per book, shown on the cover, filterable, in the CSV export.
+- **Find more to read** (Reef tab): type any author, genre/mood ("romantasy", "spicy fantasy") or a book you loved, or tap one of your own genres, to get web-search links and in-app ideas you can add to Want to Read. Suggestions from your shelf appear below.
 - **Genres**: every book can have any genres you like (type your own, e.g. *Romantasy*, *Spicy Romance*, *Dark Romance*). Tap “＋ Genre” on a book.
 - **Find more to read**: ideas based on your favorite author, genre and book, with one-tap web searches (Google, Goodreads, StoryGraph, Audible) and in-app results you can add to Want to Read.
 - **Safety**: “Erase library” needs a typed confirmation and offers a backup download first.
@@ -41,7 +42,7 @@ npm run build      # outputs dist/
 ```
 Node 20+ required. The site also loads two Google Fonts (Cinzel, Alegreya) and falls back to system serif fonts offline. `npm run dev/build` first copies the OCR engine + English data into `public/ocr` (git-ignored) so OCR is self-hosted.
 
-Browser smoke tests (optional, need Playwright): `e2e/smoke.cjs`, `e2e/features.cjs` and `e2e/reef.cjs`.
+Browser smoke tests (optional, need Playwright): `e2e/smoke.cjs`, `e2e/features.cjs`, `e2e/reef.cjs` and `e2e/ideas.cjs`.
 
 ## Deploy to GitHub Pages
 1. Push to `main`. In the repo: **Settings → Pages → Source: GitHub Actions**.
