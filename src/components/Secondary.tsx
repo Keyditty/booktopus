@@ -1,11 +1,9 @@
 import { useRef, useState } from 'react'
-import { Cover } from './Cover'
 import { download, eraseAll, exportCsv, exportJson, restoreJson } from '../lib/export'
 import { getSettings, saveSettings, type ThemeName } from '../lib/settings'
 import { undoBatch } from '../lib/store'
 import { loadSampleBooks } from '../lib/sample'
 import { VISION_MODEL } from '../lib/settings'
-import type { BookView } from '../lib/shelves'
 import type { ImportBatch } from '../types'
 
 export function History({ batches }: { batches: ImportBatch[] }) {
@@ -29,7 +27,7 @@ export function History({ batches }: { batches: ImportBatch[] }) {
   )
 }
 
-export function SettingsView({ bookCount, onChanged, onTheme, name, onName }: { bookCount: number; onChanged: () => void; onTheme: (t: ThemeName) => void; name: string; onName: (n: string) => void }) {
+export function SettingsView({ bookCount, onChanged, onTheme, name, onName, goals, onGoals }: { bookCount: number; onChanged: () => void; onTheme: (t: ThemeName) => void; name: string; onName: (n: string) => void; goals: { yearly: number; monthly: number }; onGoals: (g: { yearly: number; monthly: number }) => void }) {
   const [s, setS] = useState(getSettings())
   const [msg, setMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -42,6 +40,13 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName }: { 
         <h3 className="text-lg font-bold">Your name</h3>
         <label className="mt-2 block text-xs font-semibold text-muted" htmlFor="s-name">Shown in the greeting and header
           <input id="s-name" className="field mt-1 font-normal text-ink" defaultValue={name} onBlur={(e) => onName(e.target.value)} autoComplete="given-name" /></label>
+        <h3 className="mt-5 text-lg font-bold">Reading goals</h3>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          <label className="block text-xs font-semibold text-muted" htmlFor="g-year">Books per year
+            <input id="g-year" type="number" min={1} max={365} className="field mt-1 font-normal text-ink" defaultValue={goals.yearly} onBlur={(e) => onGoals({ ...goals, yearly: Math.max(1, Math.min(365, +e.target.value || goals.yearly)) })} /></label>
+          <label className="block text-xs font-semibold text-muted" htmlFor="g-month">Books per month
+            <input id="g-month" type="number" min={1} max={31} className="field mt-1 font-normal text-ink" defaultValue={goals.monthly} onBlur={(e) => onGoals({ ...goals, monthly: Math.max(1, Math.min(31, +e.target.value || goals.monthly)) })} /></label>
+        </div>
         <h3 className="mt-5 text-lg font-bold">Ocean</h3>
         <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label="Color theme">
           {([['deep', '🌌 Deep Sea'], ['lagoon', '🏝️ Sunlit Lagoon']] as const).map(([k, l]) => (
@@ -84,38 +89,6 @@ export function SettingsView({ bookCount, onChanged, onTheme, name, onName }: { 
           <button className="btn btn-ghost !border-rust text-rust" onClick={async () => { if (confirm('Delete your entire library from this device? Download a backup first.')) await eraseAll() }}>Erase library…</button>
         </div>
         <p className="mt-4 text-xs text-muted">Cover images and descriptions: Google Books and Open Library. Text recognition: Tesseract (runs on your device).</p>
-      </section>
-    </div>
-  )
-}
-
-export function Stats({ views, onOpen }: { views: BookView[]; onOpen: (id: string) => void }) {
-  const [pick, setPick] = useState<BookView | null>(null)
-  const finished = views.filter((v) => v.book.status === 'finished')
-  const byYear = new Map<string, number>()
-  finished.forEach((v) => { const y = v.book.finishedAt?.slice(0, 4) ?? 'Undated'; byYear.set(y, (byYear.get(y) ?? 0) + 1) })
-  const years = [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  const fmt = (f: string) => views.filter((v) => v.formats.includes(f as never)).length
-  const authors = new Map<string, number>()
-  finished.forEach((v) => v.book.authors.forEach((a) => authors.set(a, (authors.get(a) ?? 0) + 1)))
-  const top = [...authors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const pool = views.filter((v) => v.book.wantToRead).length ? views.filter((v) => v.book.wantToRead) : views.filter((v) => v.book.status === 'unknown')
-  const max = Math.max(1, ...years.map((y) => y[1]))
-  return (
-    <div className="mx-auto max-w-2xl space-y-5 fade-in">
-      <h2 className="text-2xl font-bold">Your reading</h2>
-      <div className="grid grid-cols-3 gap-3 text-center">
-        {[[views.length, 'books'], [finished.length, 'finished'], [views.filter((v) => v.book.favorite).length, 'favorites']].map(([n, l]) => <div key={l as string} className="card p-4"><div className="serif text-3xl font-bold text-accent">{n}</div><div className="text-xs text-muted">{l}</div></div>)}
-      </div>
-      <section className="card p-5"><h3 className="font-bold">Finished by year</h3>
-        {years.map(([y, n]) => <div key={y} className="mt-2 flex items-center gap-3 text-sm"><span className="w-14 text-muted">{y}</span><div className="h-4 rounded bg-accent" style={{ width: `${(n / max) * 70}%`, minWidth: 6 }} /><span>{n}</span></div>)}
-        {!years.length && <p className="mt-1 text-sm text-muted">Mark books as finished to see this fill in.</p>}
-      </section>
-      <section className="card p-5"><h3 className="font-bold">Audiobooks vs ebooks</h3><p className="mt-1 text-sm text-muted">{fmt('audiobook')} audiobooks · {fmt('ebook')} ebooks · {fmt('comic')} comics</p>
-        {top.length > 0 && <><h3 className="mt-4 font-bold">Favorite authors</h3><p className="mt-1 text-sm text-muted">{top.map(([a, n]) => `${a} (${n})`).join(' · ')}</p></>}</section>
-      <section className="card p-5 text-center"><h3 className="font-bold">What should I read next?</h3>
-        <button className="btn btn-primary mt-3" disabled={!pool.length} onClick={() => setPick(pool[Math.floor(Math.random() * pool.length)])}>Surprise me</button>
-        {pick && <button className="mx-auto mt-4 block w-32 text-left" onClick={() => onOpen(pick.book.id)}><Cover title={pick.book.title} author={pick.book.authors[0]} url={pick.book.coverUrl} /><span className="serif mt-2 block text-center text-sm font-semibold">{pick.book.title}</span></button>}
       </section>
     </div>
   )

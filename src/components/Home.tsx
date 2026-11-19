@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Cover } from './Cover'
 import { Octopus } from './Octopus'
+import { computeStats, type Goals } from '../lib/gamify'
 import { inShelf, type BookView, type ShelfId } from '../lib/shelves'
 
 function greeting(name: string) {
@@ -31,11 +32,11 @@ function Row({ title, hint, views, onOpen, onSeeAll }: { title: string; hint?: s
   )
 }
 
-export function Home({ views, name, onOpen, onShelf, onAdd, onManual }: {
-  views: BookView[]; name: string; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
+export function Home({ views, name, goals, onReef, onOpen, onShelf, onAdd, onManual }: {
+  views: BookView[]; name: string; goals: Goals; onReef: () => void; onOpen: (id: string) => void; onShelf: (s: ShelfId) => void; onAdd: () => void; onManual: () => void
 }) {
-  const year = String(new Date().getFullYear())
-  const finishedThisYear = views.filter((v) => v.book.status === 'finished' && v.book.finishedAt?.startsWith(year)).length
+  const st = useMemo(() => computeStats(views, goals), [views, goals])
+  const finishedThisYear = st.thisYear
   const by = useMemo(() => {
     const rec = [...views].sort((a, b) => b.book.createdAt.localeCompare(a.book.createdAt))
     const fin = views.filter((v) => inShelf(v, 'finished')).sort((a, b) => (b.book.finishedAt ?? '').localeCompare(a.book.finishedAt ?? ''))
@@ -51,6 +52,14 @@ export function Home({ views, name, onOpen, onShelf, onAdd, onManual }: {
         <h2 className="text-2xl font-bold sm:text-3xl">{greeting(name)}</h2>
         <p className="serif text-muted">{views.length} books in your library{finishedThisYear ? ` · ${finishedThisYear} finished this year` : ''}</p>
       </div>
+      <button onClick={onReef} className="card mx-auto mt-4 flex w-full max-w-[460px] items-center gap-3 p-3 text-left transition hover:-translate-y-0.5" aria-label="Open your Reading Reef: level, points and badges">
+        <span className="text-3xl" aria-hidden>{st.level.emoji}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2"><span className="font-display font-bold">{st.level.name}</span><span className="serif text-sm text-gold">{st.points.toLocaleString()} pts</span></span>
+          <span className="mt-1 block h-2 overflow-hidden rounded-full bg-mist"><span className="block h-full rounded-full bg-accent" style={{ width: `${st.level.progress * 100}%` }} /></span>
+          <span className="mt-1 block text-[11px] text-muted">{st.thisYear} of {goals.yearly} books this year{st.streak.current > 1 ? ` · 🔥 ${st.streak.current}-month streak` : ''}</span>
+        </span>
+      </button>
       <Octopus views={views} allViews={views} onOpen={onOpen} />
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         <button className="btn btn-primary" onClick={onAdd}>＋ Add books</button>

@@ -30,7 +30,8 @@ export async function loadSampleBooks() {
     activity: source === 'audible' ? 'purchased' : 'borrowed', events: [],
     status: st === 'want' || st === 'fav' ? undefined : st, wantToRead: st === 'want', favorite: st === 'fav' || title === 'Project Hail Mary',
     rating: st === 'finished' || st === 'fav' ? 4 + (i % 2) : undefined,
-    finishedAt: st === 'finished' ? `2025-${String((i % 11) + 1).padStart(2, '0')}-1${i % 9}` : undefined,
+    finishedAt: st === 'finished' ? (() => { const d = new Date(); d.setDate(5 + (i % 20)); d.setMonth(d.getMonth() - (i % 8)); return d.toISOString().slice(0, 10) })() : undefined,
+    notes: st === 'finished' && i % 3 === 0 ? 'Loved this one.' : undefined,
     confidence: 1, provenance: 'Sample data', enriched: 'skipped',
   }))
   // Project Hail Mary also on Libby as an ebook: shows one book with two sources

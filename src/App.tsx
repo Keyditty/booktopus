@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookCard } from './components/BookCard'
 import { BookDetail } from './components/BookDetail'
 import { FilterBar } from './components/FilterBar'
 import { ImportFlow, type ImportKind } from './components/ImportFlow'
 import { Home } from './components/Home'
 import { SeaFx } from './components/Bubbles'
-import { History, SettingsView, Stats } from './components/Secondary'
+import { History, SettingsView } from './components/Secondary'
+import { Reef } from './components/Reef'
+import { computeStats, diffMessage } from './lib/gamify'
 import { useLibrary } from './lib/useLibrary'
 import { getSettings, possessive, saveSettings, type ThemeName } from './lib/settings'
 import { NO_FILTERS, SHELVES, applyAll, inShelf, type Filters, type ShelfId, type SortKey } from './lib/shelves'
@@ -29,6 +31,10 @@ export default function App() {
   const [menu, setMenu] = useState(false)
   const [theme, setTheme] = useState<ThemeName>(getSettings().theme)
   const [name, setNameState] = useState(getSettings().ownerName)
+  const [goals, setGoalsState] = useState({ yearly: getSettings().yearlyGoal, monthly: getSettings().monthlyGoal })
+  const setGoals = (g: { yearly: number; monthly: number }) => { setGoalsState(g); saveSettings({ yearlyGoal: g.yearly, monthlyGoal: g.monthly }) }
+  const [toast, setToast] = useState<string | null>(null)
+  const prevStats = useRef<ReturnType<typeof computeStats> | null>(null)
   const setName = (n: string) => { const v = n.trim() || 'Reader'; setNameState(v); saveSettings({ ownerName: v }) }
 
   useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
@@ -39,6 +45,13 @@ export default function App() {
 
   const shown = useMemo(() => applyAll(views, shelf, q, filters, sort), [views, shelf, q, filters, sort])
   const counts = useMemo(() => Object.fromEntries(SHELVES.map((s) => [s.id, views.filter((v) => inShelf(v, s.id)).length])), [views])
+  // celebrate: compare points before/after each change to the library (skipped on first load)
+  useEffect(() => {
+    if (loading) return
+    const now = computeStats(views, goals)
+    if (prevStats.current) { const msg = diffMessage(prevStats.current, now); if (msg) { setToast(msg); const t = setTimeout(() => setToast(null), 5500); prevStats.current = now; return () => clearTimeout(t) } }
+    prevStats.current = now
+  }, [views, goals, loading])
   const open = openId ? views.find((v) => v.book.id === openId) : undefined
   const searching = q.trim().length > 0
   
@@ -58,7 +71,7 @@ export default function App() {
               {menu && (
                 <div className="card fade-in absolute right-0 z-30 mt-2 w-56 overflow-hidden py-1 text-sm shadow-lg" style={{ background: 'var(--c-sea)' }}>
                   <button className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => go('import', 'manual')}>Add one book by hand</button>
-                  {([['stats', 'Reading stats'], ['history', 'Import history'], ['settings', 'Settings & backup']] as const).map(([v, l]) => <button key={v} className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => go(v)}>{l}</button>)}
+                  {([['stats', 'Reading Reef (stats & badges)'], ['history', 'Import history'], ['settings', 'Settings & backup']] as const).map(([v, l]) => <button key={v} className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => go(v)}>{l}</button>)}
                   <button className="block w-full px-4 py-3 text-left hover:bg-mist" onClick={() => { switchTheme(theme === 'deep' ? 'lagoon' : 'deep'); setMenu(false) }}>{theme === 'deep' ? '🏝️ Sunlit Lagoon colors' : '🌌 Deep Sea colors'}</button>
                 </div>
               )}
@@ -66,15 +79,15 @@ export default function App() {
           </div>
         </header>
 
-        {(view === 'home' || view === 'shelf') && (
+        {(view === 'home' || view === 'shelf' || view === 'stats') && (
           <main className="mt-5">
-            <div className="relative">
+            {view !== 'stats' && <div className="relative">
               <input type="search" className="field !rounded-full !pl-11" placeholder="Search title, author, narrator, series" value={q}
                 onChange={(e) => { setQ(e.target.value); if (e.target.value && view === 'home') go('shelf') }} aria-label="Search your library" />
               <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden>🔍</span>
-            </div>
+            </div>}
             <div className="mt-4 flex justify-center gap-2" role="tablist" aria-label="Main">
-              {([['home', '🐙 Home'], ['shelf', '📚 Library']] as const).map(([v, l]) => (
+              {([['home', '🐙 Home'], ['shelf', '📚 Library'], ['stats', '🏆 Reef']] as const).map(([v, l]) => (
                 <button key={v} role="tab" aria-selected={view === v} onClick={() => go(v)} className={`btn !min-h-10 !py-1.5 text-sm ${view === v ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>
               ))}
             </div>
@@ -85,9 +98,11 @@ export default function App() {
           <main className="mt-5">
             {loading ? <p className="mt-16 text-center text-muted">Diving in…</p>
               : views.length === 0 ? <Welcome name={name} setName={setName} onImport={() => go('import')} onManual={() => go('import', 'manual')} />
-              : <Home views={views} name={name} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
+              : <Home views={views} name={name} goals={goals} onReef={() => go('stats')} onOpen={setOpenId} onShelf={(s) => { setShelf(s); setQ(''); setFilters(NO_FILTERS); go('shelf') }} onAdd={() => go('import')} onManual={() => go('import', 'manual')} />}
           </main>
         )}
+
+        {view === 'stats' && <main className="mt-5"><Reef views={views} goals={goals} onOpen={(id) => setOpenId(id)} /></main>}
 
         {view === 'shelf' && (
           <main className="mt-2">
@@ -120,15 +135,16 @@ export default function App() {
           </main>
         )}
 
-        {view !== 'shelf' && view !== 'home' && (
+        {view !== 'shelf' && view !== 'home' && view !== 'stats' && (
           <main className="mt-6">
             <button className="mb-4 text-sm text-accent underline" onClick={() => go('home')}>← Home</button>
             {view === 'import' && <ImportFlow kind={importKind} setKind={setImportKind} books={data?.books ?? []} onDone={() => go('home')} prefill={prefill} />}
             {view === 'history' && <History batches={data?.batches ?? []} />}
-            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} name={name} onName={setName} />}
-            {view === 'stats' && <Stats views={views} onOpen={(id) => { go('home'); setOpenId(id) }} />}
+            {view === 'settings' && <SettingsView bookCount={views.length} onChanged={() => go('home')} onTheme={switchTheme} name={name} onName={setName} goals={goals} onGoals={setGoals} />}
           </main>
         )}
+
+        {toast && <div role="status" className="sheet-in card pointer-events-none fixed inset-x-4 bottom-6 z-[60] mx-auto max-w-md p-4 text-center font-semibold shadow-2xl" style={{ background: 'var(--c-sea)', borderColor: 'var(--c-gold)' }}>🎉 {toast}</div>}
 
         {open && <BookDetail v={open} all={views} events={data?.events.filter((e) => e.bookId === open.book.id) ?? []} onClose={() => setOpenId(null)} />}
       </div>

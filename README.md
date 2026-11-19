@@ -8,6 +8,7 @@ and your reading history never leaves your device.
 
 ## What you can do
 - **Home** screen: greeting, then a friendly octopus whose **eight arms each hold a book** — either *Reading now* (glowing teal outline) or *Up next* (dashed gold outline), so you never forget what you meant to read next. Tap a free arm to give it a book; tap a held book to start it, finish it, or free the arm. Below are shelf rows (recently added, want to read, finished lately, favorites, borrowed).
+- **Reef** tab (gamification): points for every finished book (plus small bonuses), 8 sea-creature levels, 17 badges, yearly/monthly goals and streaks, books per month/year, counts by genre/format/service/author, "Ideas for you" (next in series, stalled reads, picks from your to-read pile), and an octopus fact of the day. Points are always calculated from your shelf, never stored, so they can't drift or double count.
 - **Library** tab: the full cover grid with search, filters and sorting.
 - Two color themes: **Deep Sea** (dark) and **Sunlit Lagoon** (light) — switch from the ⋯ menu or Settings.
 - Browse covers on a driftwood-shelf grid; shelves: All, Reading, Finished, Want to Read, Borrowed, Favorites, Did Not Finish.
