@@ -58,7 +58,7 @@ export function BookDetail({ v, all, events, onClose }: { v: BookView; all: Book
             </div>
           </div>
 
-          {genresOpen && <div className="card fade-in mt-4 p-3"><GenrePicker value={b.genres} known={all.flatMap((x) => x.book.genres)} onChange={(g) => patch({ genres: g })} /></div>}
+          {genresOpen && <div className="card fade-in mt-4 p-3"><GenrePicker value={b.genres} known={all.flatMap((x) => x.book.genres)} onChange={(g) => patch({ genres: g })} onDone={() => setGenresOpen(false)} /></div>}
 
           <section className="mt-6" aria-label="Reading status">
             <div className="flex flex-wrap gap-2">

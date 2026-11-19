@@ -52,6 +52,24 @@ describe('counts and streaks', () => {
   })
 })
 
+describe('the books behind the numbers', () => {
+  const bs = [
+    book({ title: 'May A', status: 'finished', finishedAt: '2026-05-20', genres: ['Fantasy'] }), book({ title: 'May B', status: 'finished', finishedAt: '2026-05-03', genres: ['Fantasy', 'Romantasy'] }),
+    book({ title: 'June C', status: 'finished', finishedAt: '2026-06-01', genres: ['Mystery'] }), book({ title: 'Unread Fantasy', genres: ['Fantasy'], wantToRead: true }),
+  ]
+  const s = computeStats(views(bs), GOALS, NOW)
+  it('lists each month\'s and year\'s books, oldest first', () => {
+    expect(s.monthBooks.get('2026-05')!.map((e) => e.book.title)).toEqual(['May B', 'May A'])
+    expect(s.monthBooks.get('2026-06')!.map((e) => e.book.title)).toEqual(['June C'])
+    expect(s.yearBooks.get('2026')!).toHaveLength(3)
+  })
+  it('lists the finished and unfinished books in each genre', () => {
+    const f = s.genres.find((g) => g.name === 'Fantasy')!
+    expect(f.finishedBooks.map((b) => b.title).sort()).toEqual(['May A', 'May B']); expect(f.otherBooks.map((b) => b.title)).toEqual(['Unread Fantasy'])
+    expect(f.finished).toBe(2); expect(f.library).toBe(3)
+  })
+})
+
 describe('levels, badges, messages', () => {
   it('maps books finished to levels, topping out at 1,000 books', () => {
     expect(levelFor(0).name).toBe('Plankton'); expect(levelFor(9).name).toBe('Plankton'); expect(levelFor(10).name).toBe('Shrimp')

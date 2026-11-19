@@ -1,5 +1,6 @@
 import { ARM_COUNT, assignArms } from './arms'
 import type { BookView } from './shelves'
+import type { Book } from '../types'
 
 /* Points are DERIVED from the library every time, never stored. That keeps them honest:
    un-marking a book or undoing an import takes its points away, and nothing can be counted twice. */
@@ -15,6 +16,7 @@ export const LEVELS: { at: number; name: string; emoji: string }[] = [
 
 export interface Goals { yearly: number; monthly: number }
 export interface Finish { bookId: string; date?: string; first: boolean }
+export interface FinishedEntry { book: Book; date: string }
 export interface Badge { id: string; emoji: string; name: string; desc: string; earned: boolean; progress?: string }
 
 const ym = (d: string) => d.slice(0, 7)
@@ -61,6 +63,19 @@ export function computeStats(views: BookView[], goals: Goals, now = new Date()) 
   const perMonth = new Map<string, number>(), perYear = new Map<string, number>()
   for (const f of finishes) if (f.date) { perMonth.set(ym(f.date), (perMonth.get(ym(f.date)) ?? 0) + 1); perYear.set(f.date.slice(0, 4), (perYear.get(f.date.slice(0, 4)) ?? 0) + 1) }
   const undated = finishes.filter((f) => !f.date).length
+  // the actual books behind each month / year bar, oldest first
+  const monthBooks = new Map<string, FinishedEntry[]>(), yearBooks = new Map<string, FinishedEntry[]>()
+  for (const f of finishes) {
+    if (!f.date) continue
+    const book = byId.get(f.bookId)?.book
+    if (!book) continue
+    for (const [m, k] of [[monthBooks, ym(f.date)], [yearBooks, f.date.slice(0, 4)]] as const) {
+      const list = m.get(k) ?? []
+      if (!list.some((e) => e.book.id === book.id)) list.push({ book, date: f.date })
+      m.set(k, list)
+    }
+  }
+  for (const m of [monthBooks, yearBooks]) for (const l of m.values()) l.sort((a, b) => a.date.localeCompare(b.date))
 
   // points
   const breakdown = { reading: 0, rereads: 0, ratings: 0, notes: 0, explorer: 0, goals: 0 }
@@ -74,14 +89,15 @@ export function computeStats(views: BookView[], goals: Goals, now = new Date()) 
   breakdown.goals = monthsHit * POINTS.monthGoal + yearsHit * POINTS.yearGoal
   const points = Object.values(breakdown).reduce((a, b) => a + b, 0)
 
-  // genres: finished vs in library
-  const genreMap = new Map<string, { finished: number; library: number }>()
+  // genres: finished vs in library, with the books behind each count
+  const genreMap = new Map<string, { finishedBooks: Book[]; otherBooks: Book[] }>()
   for (const v of views) for (const g of v.book.genres) {
-    const e = genreMap.get(g) ?? { finished: 0, library: 0 }
-    e.library++; if (finishedViews.includes(v)) e.finished++
+    const e = genreMap.get(g) ?? { finishedBooks: [], otherBooks: [] }
+    ;(finishedViews.includes(v) ? e.finishedBooks : e.otherBooks).push(v.book)
     genreMap.set(g, e)
   }
-  const genres = [...genreMap.entries()].map(([name, c]) => ({ name, ...c })).sort((a, b) => b.finished - a.finished || b.library - a.library || a.name.localeCompare(b.name))
+  const genres = [...genreMap.entries()].map(([name, c]) => ({ name, ...c, finished: c.finishedBooks.length, library: c.finishedBooks.length + c.otherBooks.length }))
+    .sort((a, b) => b.finished - a.finished || b.library - a.library || a.name.localeCompare(b.name))
 
   const countBy = (pick: (v: BookView) => string[]) => { const m = new Map<string, number>(); for (const v of finishedViews) for (const k of pick(v)) m.set(k, (m.get(k) ?? 0) + 1); return [...m.entries()].sort((a, b) => b[1] - a[1]) }
   const authors = countBy((v) => v.book.authors).slice(0, 5)
@@ -128,7 +144,7 @@ export function computeStats(views: BookView[], goals: Goals, now = new Date()) 
 
   return {
     points, breakdown, level: levelFor(totalBooks), finishes: finishes.length, finishedBooks: totalBooks, undated, libraryBooks: views.length,
-    perMonth, perYear, thisYear: yearDone, thisMonth: perMonth.get(thisMonth) ?? 0, streak: st,
+    perMonth, perYear, monthBooks, yearBooks, thisYear: yearDone, thisMonth: perMonth.get(thisMonth) ?? 0, streak: st,
     goals: { ...goals, yearDone, monthDone: perMonth.get(thisMonth) ?? 0, onPace: yearDone >= paceExpected, expected: Math.round(paceExpected) },
     genres, authors, formats, services, badges, earnedBadges: badges.filter((b) => b.earned).length, byId,
   }

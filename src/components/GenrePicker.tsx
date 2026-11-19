@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { GENRE_HINTS, KNOWN_GENRES, normalizeGenre, withGenre } from '../lib/genres'
 
 /** Chips for the genres a book has, plus a box to add any genre (suggestions come from the starter list and your own shelf). */
-export function GenrePicker({ value, onChange, known = [] }: { value: string[]; onChange: (g: string[]) => void; known?: string[] }) {
+export function GenrePicker({ value, onChange, known = [], onDone }: { value: string[]; onChange: (g: string[]) => void; known?: string[]; onDone?: () => void }) {
   const [text, setText] = useState('')
   const listId = useId()
   const options = [...new Set([...known, ...KNOWN_GENRES])].filter((g) => !value.some((v) => v.toLowerCase() === g.toLowerCase()))
@@ -28,6 +28,7 @@ export function GenrePicker({ value, onChange, known = [] }: { value: string[]; 
         {options.slice(0, 8).map((g) => <button key={g} type="button" className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted hover:bg-mist hover:text-ink" onClick={() => add(g)}>＋ {g}</button>)}
       </div>
       {hint && <p className="mt-2 text-xs text-muted">{hint}</p>}
+      {onDone && <div className="mt-3 flex justify-end"><button type="button" className="btn btn-primary !min-h-10" onClick={() => { if (text.trim()) add(text); onDone() }}>Done</button></div>}
     </div>
   )
 }

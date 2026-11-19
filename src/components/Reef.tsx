@@ -9,21 +9,53 @@ import { placeOnArm, updateBook } from '../lib/store'
 import { localToday } from '../lib/normalize'
 import { FORMAT_LABEL, SERVICE_LABEL, type BookView } from '../lib/shelves'
 import type { Book, Format, SourceName } from '../types'
+import type { FinishedEntry } from '../lib/gamify'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function Bar({ label, value, max, extra, sub }: { label: string; value: number; max: number; extra?: number; sub?: string }) {
-  return (
-    <div className="mt-2 flex items-center gap-3 text-sm">
-      <span className="w-28 shrink-0 truncate sm:w-36" title={label}>{label}</span>
+function Bar({ label, value, max, extra, sub, onClick, selected, hint }: { label: string; value: number; max: number; extra?: number; sub?: string; onClick?: () => void; selected?: boolean; hint?: string }) {
+  const inner = (
+    <>
+      <span className={`w-28 shrink-0 truncate text-left sm:w-36 ${selected ? 'font-bold text-accent' : ''}`} title={label}>{label}</span>
       <div className="relative h-4 flex-1 overflow-hidden rounded bg-mist">
         {extra ? <div className="absolute inset-y-0 left-0 rounded bg-line/70" style={{ width: `${(extra / max) * 100}%` }} /> : null}
         <div className="absolute inset-y-0 left-0 rounded bg-accent" style={{ width: `${(value / max) * 100}%`, minWidth: value ? 6 : 0 }} />
       </div>
       <span className="w-16 shrink-0 text-right tabular-nums text-muted">{value}{sub}</span>
+    </>
+  )
+  return onClick
+    ? <button type="button" onClick={onClick} aria-expanded={!!selected} title={hint} className={`mt-1 flex w-full items-center gap-3 rounded-lg px-1 py-1 text-sm transition hover:bg-mist/60 ${selected ? 'bg-mist/60' : ''}`}>{inner}</button>
+    : <div className="mt-2 flex items-center gap-3 text-sm">{inner}</div>
+}
+
+/** The books behind a number: tap one to open it. */
+function BookList({ title, groups, onOpen, onClose }: { title: string; groups: { label?: string; items: { book: Book; note?: string }[] }[]; onOpen: (id: string) => void; onClose: () => void }) {
+  return (
+    <div className="fade-in mt-2 rounded-xl border border-line bg-mist/40 p-3" role="region" aria-label={title}>
+      <div className="flex items-center justify-between gap-2"><h4 className="serif font-bold">{title}</h4><button className="text-xs text-accent underline" onClick={onClose}>Close</button></div>
+      {groups.map((g, gi) => (
+        <div key={gi} className={gi ? 'mt-3' : 'mt-2'}>
+          {g.label && <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{g.label}</div>}
+          <ul className="space-y-2">
+            {g.items.map(({ book: b, note }) => (
+              <li key={b.id}>
+                <button className="flex w-full items-center gap-3 rounded-lg p-1 text-left hover:bg-mist" onClick={() => onOpen(b.id)}>
+                  <span className="w-9 shrink-0"><Cover title={b.title} author={b.authors[0]} url={b.coverUrl} /></span>
+                  <span className="min-w-0 flex-1"><span className="serif block truncate text-sm font-semibold">{b.title}</span><span className="block truncate text-xs text-muted">{[b.authors.join(', '), note].filter(Boolean).join(' · ')}</span></span>
+                  {b.rating ? <span className="shrink-0 text-xs text-gold" aria-label={`${b.rating} stars`}>{'★'.repeat(b.rating)}</span> : null}
+                </button>
+              </li>
+            ))}
+            {!g.items.length && <li className="text-xs text-muted">Nothing here.</li>}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }
+const fmtDay = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+const entries = (l: FinishedEntry[] = []) => l.map((e) => ({ book: e.book, note: `finished ${fmtDay(e.date)}` }))
 
 export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals; onOpen: (id: string) => void }) {
   const now = useMemo(() => new Date(), [])
@@ -34,6 +66,9 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
   const [levelsOpen, setLevelsOpen] = useState(false)
   const [allGenres, setAllGenres] = useState(false)
   const [datesOpen, setDatesOpen] = useState(false)
+  const [selMonth, setSelMonth] = useState<string | null>(null)
+  const [selYear, setSelYear] = useState<string | null>(null)
+  const [selGenre, setSelGenre] = useState<string | null>(null)
   const undated = useMemo(() => views.filter((v) => v.book.status === 'finished' && !v.book.finishedAt), [views])
   const sugg = useMemo(() => suggestions(views, now), [views, now])
   const monthVals = MONTHS.map((_, i) => s.perMonth.get(`${year}-${String(i + 1).padStart(2, '0')}`) ?? 0)
@@ -97,15 +132,27 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
       <section className="card p-5" aria-label="Books per month">
         <div className="flex items-center justify-between gap-3"><h3 className="font-bold">Books each month</h3>
           <select className="field !min-h-9 !w-auto !py-1 text-sm" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">{years.map((y) => <option key={y}>{y}</option>)}</select></div>
-        <div className="mt-4 flex h-36 items-end gap-1.5 sm:gap-2" role="img" aria-label={`Books finished per month in ${year}: ${MONTHS.map((m, i) => `${m} ${monthVals[i]}`).join(', ')}`}>
-          {monthVals.map((n, i) => (
-            <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-              <span className="text-[11px] tabular-nums text-muted">{n || ''}</span>
-              <div className={`w-full rounded-t ${n >= goals.monthly ? 'bg-gold' : 'bg-accent'}`} style={{ height: `${(n / monthMax) * 100}%`, minHeight: n ? 4 : 2, opacity: n ? 1 : 0.25 }} />
-              <span className="text-[10px] text-muted">{MONTHS[i][0]}</span>
-            </div>
-          ))}
+        <div className="mt-4 flex h-36 items-end gap-1.5 sm:gap-2" role="group" aria-label={`Books finished per month in ${year}: ${MONTHS.map((m, i) => `${m} ${monthVals[i]}`).join(', ')}`}>
+          {monthVals.map((n, i) => {
+            const key = `${year}-${String(i + 1).padStart(2, '0')}`
+            const list = s.monthBooks.get(key) ?? []
+            const sel = selMonth === key
+            return (
+              <button key={i} type="button" disabled={!n} onClick={() => setSelMonth(sel ? null : key)} aria-pressed={sel}
+                aria-label={`${MONTHS[i]} ${year}: ${n} book${n === 1 ? '' : 's'}${n ? '. Show them' : ''}`}
+                title={n ? `${MONTHS[i]}: ${list.map((e) => e.book.title).slice(0, 6).join(', ')}${list.length > 6 ? '…' : ''}` : undefined}
+                className={`flex h-full flex-1 flex-col items-center justify-end gap-1 rounded-md ${n ? 'cursor-pointer hover:bg-mist/60' : 'cursor-default'} ${sel ? 'bg-mist/70 ring-1 ring-accent' : ''}`}>
+                <span className="text-[11px] tabular-nums text-muted">{n || ''}</span>
+                <div className={`w-full rounded-t ${n >= goals.monthly ? 'bg-gold' : 'bg-accent'}`} style={{ height: `${(n / monthMax) * 100}%`, minHeight: n ? 4 : 2, opacity: n ? 1 : 0.25 }} />
+                <span className="text-[10px] text-muted">{MONTHS[i][0]}</span>
+              </button>
+            )
+          })}
         </div>
+        {selMonth?.startsWith(year) && (s.monthBooks.get(selMonth)?.length ?? 0) > 0 && (
+          <BookList title={`${MONTHS[+selMonth.slice(5) - 1]} ${year} · ${s.monthBooks.get(selMonth)!.length} book${s.monthBooks.get(selMonth)!.length === 1 ? '' : 's'}`} groups={[{ items: entries(s.monthBooks.get(selMonth)) }]} onOpen={onOpen} onClose={() => setSelMonth(null)} />
+        )}
+        {!selMonth?.startsWith(year) && s.perMonth.size > 0 && <p className="mt-2 text-xs text-muted">Tap a month to see the books you finished.</p>}
         <p className="mt-2 text-xs text-muted"><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-gold" /> months where you hit your goal of {goals.monthly}</p>
         {undated.length > 0 && (
           <div className="mt-3 rounded-xl border border-gold p-3" role="note">
@@ -128,14 +175,14 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
 
       <section className="card p-5" aria-label="Books per year">
         <h3 className="font-bold">Books each year</h3>
-        {yearRows.length ? yearRows.map(([y, n]) => <Bar key={y} label={y} value={n} max={Math.max(goals.yearly, ...yearRows.map((r) => r[1]))} />) : <p className="mt-1 text-sm text-muted">Mark a book as finished (with a date) to see this fill in.</p>}
+        {yearRows.length ? yearRows.map(([y, n]) => <div key={y}><Bar label={y} value={n} max={Math.max(goals.yearly, ...yearRows.map((r) => r[1]))} onClick={() => setSelYear(selYear === y ? null : y)} selected={selYear === y} hint={`Show the ${n} book${n === 1 ? '' : 's'} finished in ${y}`} />{selYear === y && <BookList title={`${y} · ${n} book${n === 1 ? '' : 's'}`} groups={[{ items: entries(s.yearBooks.get(y)) }]} onOpen={onOpen} onClose={() => setSelYear(null)} />}</div>) : <p className="mt-1 text-sm text-muted">Mark a book as finished (with a date) to see this fill in.</p>}
         <p className="mt-3 text-sm text-muted">All time: <strong className="text-ink">{s.finishedBooks}</strong> books finished{s.finishes > s.finishedBooks ? ` (${s.finishes} counting re-reads)` : ''} out of {s.libraryBooks} in your library.</p>
       </section>
 
       <section className="card p-5" aria-label="Genres">
         <h3 className="font-bold">By genre</h3>
-        <p className="text-xs text-muted">Bright bar = finished, faint bar = on your shelf.</p>
-        {s.genres.length ? s.genres.slice(0, allGenres ? 100 : 10).map((g) => <Bar key={g.name} label={g.name} value={g.finished} extra={g.library} max={genreMax} sub={`/${g.library}`} />) : <p className="mt-1 text-sm text-muted">Genres appear once books have been matched online or edited.</p>}
+        <p className="text-xs text-muted">Bright bar = finished, faint bar = on your shelf. Tap a genre to see the books.</p>
+        {s.genres.length ? s.genres.slice(0, allGenres ? 100 : 10).map((g) => <div key={g.name}><Bar label={g.name} value={g.finished} extra={g.library} max={genreMax} sub={`/${g.library}`} onClick={() => setSelGenre(selGenre === g.name ? null : g.name)} selected={selGenre === g.name} hint={`${g.name}: ${g.finishedBooks.slice(0, 6).map((b) => b.title).join(', ') || 'nothing finished yet'}`} />{selGenre === g.name && <BookList title={`${g.name} · ${g.finished} finished of ${g.library}`} groups={[{ label: `Finished (${g.finished})`, items: g.finishedBooks.map((b) => ({ book: b, note: b.finishedAt ? `finished ${fmtDay(b.finishedAt)}` : undefined })) }, ...(g.otherBooks.length ? [{ label: `On your shelf, not finished (${g.otherBooks.length})`, items: g.otherBooks.map((b) => ({ book: b })) }] : [])]} onOpen={onOpen} onClose={() => setSelGenre(null)} />}</div>) : <p className="mt-1 text-sm text-muted">Genres appear once books have been matched online or edited.</p>}
         {s.genres.length > 10 && <button className="mt-3 text-sm text-accent underline" onClick={() => setAllGenres(!allGenres)}>{allGenres ? 'Show fewer' : `Show all ${s.genres.length} genres`}</button>}
         <p className="mt-2 text-xs text-muted">Missing a genre? Open any book and tap “＋ Genre” to add your own, like Romantasy.</p>
         {s.formats.length > 0 && <p className="mt-4 text-sm text-muted">Finished by format: {s.formats.map(([f, n]) => `${FORMAT_LABEL[f as Format]} ${n}`).join(' · ')}</p>}
