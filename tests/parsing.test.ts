@@ -133,3 +133,24 @@ describe('screenshot (OCR) text layout', () => {
     expect(c[0].confidence).toBeGreaterThan(c[1].confidence)
   })
 })
+
+import { readFileSync } from 'node:fs'
+import { xlsxToCsv } from '../src/lib/importers/xlsx'
+
+describe('Excel (.xlsx) import', () => {
+  it('reads a real .xlsx, converts date serials, and feeds the Libby importer', async () => {
+    const b = readFileSync(new URL('./fixtures/libby.xlsx', import.meta.url))
+    const csv = await xlsxToCsv(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))
+    expect(csv.split('\n')[0]).toContain('"title","author"')
+    expect(csv).toContain('2025-02-')
+    const r = parseLibby(csv)
+    expect(r.candidates).toHaveLength(2)
+    const phm = r.candidates.find((c) => c.title === 'Project Hail Mary')!
+    expect(phm.events.map((e) => e.type)).toEqual(['borrowed', 'returned'])
+    expect(phm.identifiers.isbn).toBe('9780593135204')
+    expect(r.candidates.every((c) => c.status === undefined)).toBe(true)
+  })
+  it('rejects non-Excel files with a friendly error', async () => {
+    await expect(xlsxToCsv(new TextEncoder().encode('not a zip at all').buffer as ArrayBuffer)).rejects.toThrow(/Excel/)
+  })
+})

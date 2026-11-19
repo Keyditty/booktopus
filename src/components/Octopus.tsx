@@ -33,11 +33,18 @@ function armPoints(i: number): Pt[] {
   const tx = COLS[i % 4]
   const dx = tx - 200
   const dir = dx < 0 ? -1 : 1
-  const wig = (i % 2 ? 1 : -1) * 16
+  const wig = (i % 2 ? 1 : -1) * 18
   const pts: Pt[] = [
-    [200 + dx * 0.15, 322], [200 + dx * 0.48, 268], [200 + dx * 0.92 + wig, 210],
-    [tx - wig * 0.4, 168], [tx + dir * 14, 138], [tx + dir * 28, 122], [tx + dir * 22, 108],
+    [200 + dx * 0.12, 330], [200 + dx * 0.45, 275], [200 + dx * 0.9 + wig, 215],
+    [tx - wig * 0.5, 172], [tx + dir * 6, 142],
   ]
+  // spiral curl at the tip, wrapping the bottom corner of the book
+  const cx = tx + dir * 20, cy = 126, sweep = -dir
+  for (let k = 0; k <= 7; k++) {
+    const t = k / 7, ang = Math.atan2(142 - cy, tx + dir * 6 - cx) + sweep * t * Math.PI * 1.3
+    const r = 19 * (1 - t * 0.65)
+    pts.push([cx + r * Math.cos(ang), cy + r * Math.sin(ang)])
+  }
   return up ? pts : pts.map(([x, y]) => [x, H - y] as Pt)
 }
 
@@ -50,9 +57,12 @@ function armShape(pts: Pt[]) {
     const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1
     const nx = -dy / len, ny = dx / len
     const t = k / (n - 1)
-    const w = 3 + 25 * Math.pow(1 - t, 1.15)
+    const w = 2.5 + 30 * Math.pow(1 - t, 1.25)
     L.push([p[0] + (nx * w) / 2, p[1] + (ny * w) / 2]); R.push([p[0] - (nx * w) / 2, p[1] - (ny * w) / 2])
-    if (k % 5 === 2 && t > 0.14 && t < 0.97 && w > 4.5) suck.push({ x: p[0] + nx * w * 0.12, y: p[1] + ny * w * 0.12, r: Math.max(1.3, w * 0.24) })
+    if (k % 5 === 2 && t > 0.12 && t < 0.98 && w > 4) {
+      const r = Math.max(1.2, w * 0.2)
+      suck.push({ x: p[0] + nx * w * 0.2, y: p[1] + ny * w * 0.2, r }, { x: p[0] - nx * w * 0.2, y: p[1] - ny * w * 0.2, r })
+    }
   })
   const f = (q: Pt) => `${q[0].toFixed(1)} ${q[1].toFixed(1)}`
   const d = `M${f(L[0])} ` + L.slice(1).map((q) => `L${f(q)}`).join(' ') + ' ' + R.reverse().map((q) => `L${f(q)}`).join(' ') + ' Z'
@@ -60,53 +70,56 @@ function armShape(pts: Pt[]) {
 }
 
 const SPOTS = (() => {
-  let seed = 7
+  let seed = 11
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 }
-  return Array.from({ length: 26 }, () => ({ x: 140 + rnd() * 120, y: 205 + rnd() * 160, r: 2 + rnd() * 5, o: 0.18 + rnd() * 0.3, light: rnd() > 0.55 }))
+  return Array.from({ length: 34 }, () => ({ x: 125 + rnd() * 150, y: 180 + rnd() * 195, r: 3 + rnd() * 6.5, o: 0.55 + rnd() * 0.4 }))
 })()
 
 function Arm({ i }: { i: number }) {
   const { d, suck } = useMemo(() => armShape(armPoints(i)), [i])
   return (
     <g className="arm" style={{ animationDelay: `${i * -0.8}s` }}>
-      <path d={d} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.6} strokeLinejoin="round" />
-      {suck.map((s, k) => <g key={k}><circle cx={s.x} cy={s.y} r={s.r} fill="#ffd9ea" stroke="#c77aa6" strokeWidth={0.7} /><circle cx={s.x} cy={s.y} r={s.r * 0.45} fill="#e9a3c6" /></g>)}
+      <path d={d} fill="url(#skin)" stroke="#8a3a1f" strokeWidth={1.6} strokeLinejoin="round" />
+      {suck.map((s, k) => <g key={k}><circle cx={s.x} cy={s.y} r={s.r} fill="#ffe9d2" stroke="#c4623c" strokeWidth={0.8} /><circle cx={s.x} cy={s.y} r={s.r * 0.42} fill="#e59a78" /></g>)}
     </g>
   )
 }
 
-function Eye({ cx }: { cx: number }) {
-  const cy = 326
+function Eye({ cx, side }: { cx: number; side: -1 | 1 }) {
+  const cy = 322
   return (
     <g>
-      <ellipse cx={cx} cy={cy} rx={25} ry={23} fill="#4a2284" />
+      {/* raised eye socket */}
+      <ellipse cx={cx} cy={cy} rx={30} ry={27} fill="url(#skin)" stroke="#8a3a1f" strokeWidth={1.6} />
+      <ellipse cx={cx} cy={cy} rx={22} ry={20} fill="#7a2f17" />
       <g className="blink">
-        <circle cx={cx} cy={cy} r={19} fill="url(#iris)" />
-        <rect x={cx - 12} y={cy - 3.5} width={24} height={7} rx={3.5} fill="#170c2b" />
-        <circle cx={cx - 14} cy={cy - 12} r={0} />
-        <circle cx={cx + 6} cy={cy - 7} r={4} fill="#fff" opacity={0.95} /><circle cx={cx - 7} cy={cy + 7} r={2} fill="#fff" opacity={0.7} />
+        <circle cx={cx} cy={cy} r={18} fill="url(#iris)" />
+        <rect x={cx - 13} y={cy - 3.2} width={26} height={6.4} rx={3.2} fill="#140a05" />
+        <circle cx={cx + 6} cy={cy - 8} r={4.2} fill="#fff" opacity={0.95} /><circle cx={cx - 8} cy={cy + 7} r={2} fill="#fff" opacity={0.65} />
       </g>
-      {/* relaxed upper lid gives the friendly, sleepy-kind look */}
-      <path d={`M${cx - 25} ${cy - 6} C ${cx - 20} ${cy - 34}, ${cx + 20} ${cy - 34}, ${cx + 25} ${cy - 6} C ${cx + 12} ${cy - 20}, ${cx - 12} ${cy - 20}, ${cx - 25} ${cy - 6} Z`} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.4} />
+      {/* gentle brow ridge, lifted at the outer corner so the look is curious, not sleepy */}
+      <path d={`M${cx - 26} ${cy - 10} Q ${cx} ${cy - 30} ${cx + 26} ${cy - 10} Q ${cx} ${cy - 22} ${cx - 26} ${cy - 10} Z`} fill="#c8602f" opacity={0.85} transform={`rotate(${side * -6} ${cx} ${cy})`} />
     </g>
   )
 }
+
+const BODY = 'M200 168 C258 168 280 224 272 266 C266 296 290 306 288 338 C286 366 252 386 200 386 C148 386 114 366 112 338 C110 306 134 296 128 266 C120 224 142 168 200 168 Z'
 
 function Body() {
   return (
     <g>
-      <clipPath id="bodyclip"><ellipse cx={206} cy={272} rx={57} ry={76} transform="rotate(8 206 272)" /><ellipse cx={200} cy={325} rx={72} ry={52} /></clipPath>
-      <ellipse cx={206} cy={272} rx={57} ry={76} transform="rotate(8 206 272)" fill="url(#skin)" stroke="#4a2284" strokeWidth={1.8} />
-      <ellipse cx={200} cy={325} rx={72} ry={52} fill="url(#skin)" stroke="#4a2284" strokeWidth={1.8} />
-      {/* blend the seam between mantle and head */}
-      <ellipse cx={203} cy={298} rx={58} ry={24} fill="url(#skin)" />
+      <clipPath id="bodyclip"><path d={BODY} /></clipPath>
+      {/* webbing where the arms meet the head */}
+      <ellipse cx={200} cy={372} rx={70} ry={26} fill="#c8602f" stroke="#8a3a1f" strokeWidth={1.4} />
+      <path d={BODY} fill="url(#skin)" stroke="#8a3a1f" strokeWidth={1.8} />
       <g clipPath="url(#bodyclip)">
-        {SPOTS.map((s, i) => <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={s.light ? '#e7c8ff' : '#4a2284'} opacity={s.o} />)}
-        <ellipse cx={186} cy={238} rx={20} ry={36} transform="rotate(-18 186 238)" fill="#fff" opacity={0.2} />
+        {SPOTS.map((s, i) => <g key={i}><circle cx={s.x} cy={s.y} r={s.r} fill="#ffeed9" opacity={s.o} /><circle cx={s.x} cy={s.y} r={s.r * 0.45} fill="#e59a78" opacity={s.o * 0.8} /></g>)}
+        <ellipse cx={184} cy={226} rx={24} ry={42} transform="rotate(-16 184 226)" fill="#fff" opacity={0.16} />
       </g>
-      <Eye cx={168} /><Eye cx={232} />
-      <ellipse cx={146} cy={356} rx={13} ry={7} fill="#ff8fb8" opacity={0.4} /><ellipse cx={254} cy={356} rx={13} ry={7} fill="#ff8fb8" opacity={0.4} />
-      <path d="M185 362 Q200 376 215 362" fill="none" stroke="#3a1670" strokeWidth={3.2} strokeLinecap="round" />
+      {/* siphon */}
+      <path d="M236 372 q14 2 20 12 q-12 4 -22 -2 z" fill="#d9703a" stroke="#8a3a1f" strokeWidth={1.2} />
+      <Eye cx={150} side={-1} /><Eye cx={250} side={1} />
+      <path d="M184 366 Q200 378 216 366" fill="none" stroke="#6b2412" strokeWidth={3.2} strokeLinecap="round" />
     </g>
   )
 }
@@ -139,8 +152,8 @@ export function Octopus({ views, onOpen, allViews }: { views: BookView[]; onOpen
         ))}
         <svg viewBox={`0 0 ${W} ${H}`} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" role="img" aria-label="A friendly octopus holding eight books with its arms">
           <defs>
-            <linearGradient id="skin" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stopColor="#c58af0" /><stop offset="0.55" stopColor="#9a55d6" /><stop offset="1" stopColor="#6c33b3" /></linearGradient>
-            <radialGradient id="iris" cx="45%" cy="40%" r="70%"><stop offset="0" stopColor="#ffe08a" /><stop offset="0.7" stopColor="#f0a53a" /><stop offset="1" stopColor="#c9701c" /></radialGradient>
+            <linearGradient id="skin" x1="0.1" y1="0" x2="0.5" y2="1"><stop offset="0" stopColor="#f7b46a" /><stop offset="0.5" stopColor="#e47f45" /><stop offset="1" stopColor="#b9532b" /></linearGradient>
+            <radialGradient id="iris" cx="45%" cy="40%" r="70%"><stop offset="0" stopColor="#fff0a8" /><stop offset="0.65" stopColor="#f6c23e" /><stop offset="1" stopColor="#d98a1c" /></radialGradient>
           </defs>
           {Array.from({ length: 8 }, (_, i) => <Arm key={i} i={i} />)}
           <Body />

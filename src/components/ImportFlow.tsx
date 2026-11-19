@@ -47,7 +47,7 @@ export function ImportFlow({ kind, setKind, books, onDone, prefill }: { kind: Im
 const TEXT_CFG: Record<'paste' | 'libby' | 'audible' | 'hoopla', { title: string; source: SourceName; steps: ReactNode[]; placeholder: string; note?: string }> = {
   paste: {
     title: 'Paste a book list', source: 'chatgpt', placeholder: 'Paste your ChatGPT conversation or list here…',
-    steps: ['Open your ChatGPT conversation, select the list (or the whole chat) and copy it.', 'Paste it below — or choose a .txt, .md, .csv or .json file.', 'Chatter and explanations are ignored; only book titles are picked out.'],
+    steps: ['Open your ChatGPT conversation, select the list (or the whole chat) and copy it.', 'Paste it below — or choose a .txt, .md, .csv, .json or Excel (.xlsx) file.', 'Chatter and explanations are ignored; only book titles are picked out.'],
   },
   libby: {
     title: 'Import Libby history', source: 'libby', placeholder: 'Paste the table you copied from your Libby timeline, or choose the exported file…',
@@ -75,7 +75,14 @@ function TextImport({ kind, onResult, onBack, switchTo }: { kind: 'paste' | 'lib
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
     const parts: string[] = []
-    for (const f of Array.from(files)) parts.push(await f.text())
+    try {
+      for (const f of Array.from(files)) {
+        if (/\.xlsx$/i.test(f.name)) parts.push(await (await import('../lib/importers/xlsx')).xlsxToCsv(await f.arrayBuffer()))
+        else if (/\.xls$/i.test(f.name)) { setErr('Old .xls files can’t be read. In Excel choose File → Save As → “Excel Workbook (.xlsx)” or “CSV”, then pick that file.'); return }
+        else parts.push(await f.text())
+      }
+    } catch (e) { setErr((e as Error).message); return }
+    setErr('')
     setNames(Array.from(files).map((f) => f.name)); setText(parts.join('\n\n'))
   }
 
@@ -100,7 +107,7 @@ function TextImport({ kind, onResult, onBack, switchTo }: { kind: 'paste' | 'lib
       {cfg.note && <p className="mt-3 rounded-xl bg-mist/70 p-3 text-sm">{cfg.note}</p>}
       <textarea className="field mt-4 min-h-56 font-mono text-sm" value={text} placeholder={cfg.placeholder} onChange={(e) => { setText(e.target.value); setNames([]) }} aria-label="Book text" />
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input ref={fileRef} type="file" hidden multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,text/*,application/json" onChange={(e) => onFiles(e.target.files)} />
+        <input ref={fileRef} type="file" hidden multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.html,.xlsx,.xls,text/*,application/json" onChange={(e) => onFiles(e.target.files)} />
         <button className="btn btn-ghost" onClick={() => fileRef.current?.click()}>Choose a file…</button>
         {names.length > 0 && <span className="text-sm text-muted">{names.join(', ')}</span>}
         <button className="btn btn-primary ml-auto" disabled={!text.trim()} onClick={go}>Find my books</button>
