@@ -1,7 +1,7 @@
 import { db } from './db'
 import { assignArms } from './arms'
 import { bestMatch, AUTO_MERGE, POSSIBLE } from './match'
-import { bookKeyOf, hashStr, newId } from './normalize'
+import { bookKeyOf, hashStr, localToday, newId } from './normalize'
 import type { ActivityEvent, Book, Candidate, ImportBatch, ReviewCategory, ReviewItem, SourceActivity, SourceEntry, SourceRecord } from '../types'
 
 const now = () => new Date().toISOString()
@@ -219,7 +219,7 @@ export async function updateBook(id: string, patch: Partial<Book>, userFields: s
 export async function setStatus(id: string, status: Book['status']) {
   const b = await db.books.get(id)
   if (!b) return
-  const today = now().slice(0, 10)
+  const today = localToday()
   b.status = status
   b.statusSource = 'user'
   if (status === 'in_progress') { b.startedAt = b.startedAt || today; b.wantToRead = false }
@@ -249,7 +249,7 @@ export async function placeOnArm(id: string, mode: 'reading' | 'queued', slot?: 
   for (let i = 0; i < layout.length; i++) { const x = layout[i]; if (x && x.id !== id && x.arm !== i) await db.books.update(x.id, { arm: i }) }
   b.arm = idx
   b.statusSource = 'user'
-  if (mode === 'reading') { b.status = 'in_progress'; b.startedAt = b.startedAt || now().slice(0, 10); b.wantToRead = false }
+  if (mode === 'reading') { b.status = 'in_progress'; b.startedAt = b.startedAt || localToday(); b.wantToRead = false }
   else { b.wantToRead = true; if (b.status === 'in_progress') b.status = 'not_started'; if (b.status === 'unknown') b.status = 'not_started' }
   b.updatedAt = now()
   await db.books.put(b)
@@ -273,7 +273,7 @@ export async function readAgain(id: string) {
   const b = await db.books.get(id)
   if (!b) return
   b.readings = [...b.readings, { startedAt: b.startedAt, finishedAt: b.finishedAt }]
-  b.status = 'in_progress'; b.statusSource = 'user'; b.startedAt = now().slice(0, 10); b.finishedAt = undefined
+  b.status = 'in_progress'; b.statusSource = 'user'; b.startedAt = localToday(); b.finishedAt = undefined
   b.updatedAt = now()
   await db.books.put(b)
   notify()

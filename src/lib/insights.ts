@@ -55,7 +55,8 @@ export function suggestions(views: BookView[], now = new Date()): Suggestion[] {
   }).filter((x) => x.s > 0).sort((p, q) => q.s - p.s)
   for (const { u, g, a } of scored.slice(0, 3)) {
     const nFin = g ? finished.filter((f) => f.book.genres.includes(g.x)).length : 0
-    add({ kind: 'genre', book: u.book, reason: a && a.s > 0 ? `You’ve enjoyed ${a.x} before` : `You’ve finished ${nFin} ${g!.x} book${nFin === 1 ? '' : 's'}` })
+    const reason = a && a.s > 0 ? `You’ve enjoyed ${a.x} before` : g && g.s > 0 ? `You’ve finished ${nFin} ${g.x} book${nFin === 1 ? '' : 's'}` : 'From your to-read pile'
+    add({ kind: 'genre', book: u.book, reason })
   }
   // 4. stretch: a genre on your shelf that you haven't finished anything in yet
   const finishedGenres = new Set(finished.flatMap((f) => f.book.genres))

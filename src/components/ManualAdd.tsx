@@ -4,7 +4,7 @@ import { GenrePicker } from './GenrePicker'
 import { SpiceInput } from './SpiceInput'
 import { applyMeta, lookupMeta, searchBooks, type Meta } from '../lib/metadata'
 import { commitImport, planOne, undoBatch } from '../lib/store'
-import { splitAuthors } from '../lib/normalize'
+import { localToday, splitAuthors } from '../lib/normalize'
 import { withGenre } from '../lib/genres'
 import { getSettings } from '../lib/settings'
 import type { Book, Candidate, Format, ImportBatch, ReviewItem, SourceName } from '../types'
@@ -30,6 +30,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
   const [spice, setSpice] = useState<number | undefined>(undefined)
+  const [finishedOn, setFinishedOn] = useState(localToday())
   const [picked, setPicked] = useState<Meta | null>(null)
   const [sugg, setSugg] = useState<Meta[]>([])
   const [searching, setSearching] = useState(false)
@@ -60,6 +61,9 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
       confidence: 1, provenance: 'Added by hand', enriched: picked ? 'matched' : undefined,
     }
     STATUS.find((s) => s[0] === status)![2](c)
+    // a finished book needs a finish date or it can't appear in this year / this month; reading books get a start date
+    if (status === 'finished') c.finishedAt = finishedOn || localToday()
+    if (status === 'reading') c.startedAt = localToday()
     return c
   }
 
@@ -78,7 +82,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
     } finally { setBusy(false) }
   }
 
-  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setGenres([]); setSpice(undefined); setDone(null); setUndone(false); setConflict(null) }
+  function reset() { setTitle(''); setAuthor(''); setNarrator(''); setSeries(''); setSeriesNo(''); setStatus('none'); setRating(0); setNotes(''); setPicked(null); setGenres([]); setSpice(undefined); setFinishedOn(localToday()); setDone(null); setUndone(false); setConflict(null) }
 
   if (done) return (
     <div className="card fade-in mx-auto max-w-xl p-8 text-center">
@@ -132,6 +136,7 @@ export function ManualAdd({ books, prefill, onDone }: { books: Book[]; prefill?:
         <div><span className={lbl}>Genres</span><div className="mt-1"><GenrePicker value={genres} onChange={setGenres} known={books.flatMap((b) => b.genres)} /></div></div>
         <fieldset><legend className={lbl}>Where are you with it?</legend>
           <div className="mt-1 flex flex-wrap gap-2">{STATUS.map(([k, l]) => <button key={k} type="button" aria-pressed={status === k} onClick={() => setStatus(k)} className={`btn !min-h-10 !py-1.5 text-sm ${status === k ? 'btn-primary' : 'btn-ghost'}`}>{l}</button>)}</div></fieldset>
+        {status === 'finished' && <div className="fade-in"><label className={lbl} htmlFor="m-fin">Finished on</label><input id="m-fin" type="date" className="field mt-1" value={finishedOn} max={localToday()} onChange={(e) => setFinishedOn(e.target.value)} /><p className="mt-1 text-xs text-muted">This is what counts the book toward your year, your month and your goals.</p></div>}
         <div><span className={lbl}>My rating</span>
           <div className="flex items-center" role="radiogroup" aria-label="My rating">{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} star${n > 1 ? 's' : ''}`} onClick={() => setRating(rating === n ? 0 : n)} className={`h-11 w-9 text-3xl leading-none ${rating >= n ? 'text-gold' : 'text-mist'}`}>★</button>)}</div></div>
         <div><span className={lbl}>Spice level</span><SpiceInput value={spice} onChange={setSpice} /></div>

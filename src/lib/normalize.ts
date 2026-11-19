@@ -139,3 +139,8 @@ export function hashStr(s: string): string {
 export function bookKeyOf(title: string, authors: string[]): string {
   return `${normTitle(title)}|${authors[0] ? authorKey(authors[0]) : ''}`
 }
+
+/** Today's date in the reader's OWN time zone as YYYY-MM-DD (toISOString() would use UTC and can land on tomorrow's date in the evening). */
+export function localToday(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}

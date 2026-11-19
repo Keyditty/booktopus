@@ -26,9 +26,10 @@ export function SeriesSheet({ query, books, onClose, onOpen }: { query: SeriesQu
         {!out && <p className="mt-3 text-sm text-muted">Looking it up…</p>}
         {out && !out.result && (
           <div className="mt-3 text-sm">
-            <p>Couldn’t find a series for “{query.series ?? query.title}”.</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">{out.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
-            <a className="btn btn-ghost mt-3 !min-h-9 text-xs" href={googleUrl(`${query.series ?? query.title} book series in order`)} target="_blank" rel="noopener noreferrer">🔎 Search Google for the series order</a>
+            <p>We couldn’t find the full list for <strong>{query.series ?? query.title}</strong> in our free book databases. Google is usually the quickest way to see the series in order.</p>
+            <a className="btn btn-primary mt-3" href={googleUrl(`${query.series ?? query.title} ${query.author ?? ''} book series in order`)} target="_blank" rel="noopener noreferrer">🔎 See the series on Google</a>
+            <details className="mt-4 text-xs text-muted"><summary className="cursor-pointer">Technical details</summary>
+              <ul className="mt-1 list-disc space-y-1 pl-5">{out.notes.map((n, i) => <li key={i}>{n}</li>)}</ul></details>
           </div>
         )}
         {out?.result && (

@@ -39,6 +39,8 @@ npm run build      # outputs dist/
 ```
 Node 20+ required. The site also loads two Google Fonts (Cinzel, Alegreya) and falls back to system serif fonts offline. `npm run dev/build` first copies the OCR engine + English data into `public/ocr` (git-ignored) so OCR is self-hosted.
 
+Browser smoke test (optional, needs Playwright): see `e2e/smoke.cjs`.
+
 ## Deploy to GitHub Pages
 1. Push to `main`. In the repo: **Settings → Pages → Source: GitHub Actions**.
 2. The included workflow (`.github/workflows/deploy.yml`) tests, builds and publishes. The site uses relative asset paths, so it works at

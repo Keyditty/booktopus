@@ -42,11 +42,11 @@ describe('Inventaire series (fake responses)', () => {
 })
 
 describe('findSeries fallback', () => {
-  it('falls back to Inventaire when Hardcover has no token, and says what happened', async () => {
+  it('skips Hardcover without a token, tries Inventaire, and reports why nothing was found', async () => {
     globalThis.fetch = (async () => json({ results: [] })) as typeof fetch
     const o = await findSeries({ title: 'Unknown Book' })
     expect(o.result).toBeNull()
-    expect(o.notes.join(' ')).toContain('Hardcover skipped'); expect(o.notes.join(' ')).toContain('Inventaire')
+    expect(o.notes.join(' ')).not.toContain('Hardcover'); expect(o.notes.join(' ')).toContain('Inventaire')
   })
   it('turns network failures into a plain message', async () => {
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch') }) as typeof fetch

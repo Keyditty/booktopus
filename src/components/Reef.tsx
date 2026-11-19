@@ -4,7 +4,8 @@ import { computeStats, LEVELS, POINTS, type Goals } from '../lib/gamify'
 import { addToWantList, buildSeeds, notInLibrary, searchLinks, type Seed } from '../lib/discover'
 import { discoverBooks, type Meta } from '../lib/metadata'
 import { suggestions, triviaOfTheDay } from '../lib/insights'
-import { placeOnArm } from '../lib/store'
+import { placeOnArm, updateBook } from '../lib/store'
+import { localToday } from '../lib/normalize'
 import { FORMAT_LABEL, SERVICE_LABEL, type BookView } from '../lib/shelves'
 import type { Book, Format, SourceName } from '../types'
 
@@ -31,6 +32,8 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
   const [showPoints, setShowPoints] = useState(false)
   const [levelsOpen, setLevelsOpen] = useState(false)
   const [allGenres, setAllGenres] = useState(false)
+  const [datesOpen, setDatesOpen] = useState(false)
+  const undated = useMemo(() => views.filter((v) => v.book.status === 'finished' && !v.book.finishedAt), [views])
   const sugg = useMemo(() => suggestions(views, now), [views, now])
   const monthVals = MONTHS.map((_, i) => s.perMonth.get(`${year}-${String(i + 1).padStart(2, '0')}`) ?? 0)
   const monthMax = Math.max(1, goals.monthly, ...monthVals)
@@ -75,7 +78,7 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
       </section>
 
       <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-        {([[s.finishedBooks, 'books finished'], [s.thisYear, `in ${now.getFullYear()}`], [s.thisMonth, 'this month'], [s.libraryBooks, 'in your library']] as const).map(([n, l]) => (
+        {([[s.finishedBooks, s.finishedBooks === 1 ? 'book finished' : 'books finished'], [s.thisYear, `in ${now.getFullYear()}`], [s.thisMonth, 'this month'], [s.libraryBooks, 'in your library']] as const).map(([n, l]) => (
           <div key={l} className="card p-3"><div className="serif text-3xl font-bold text-accent">{n}</div><div className="text-xs text-muted">{l}</div></div>
         ))}
       </div>
@@ -103,7 +106,23 @@ export function Reef({ views, goals, onOpen }: { views: BookView[]; goals: Goals
           ))}
         </div>
         <p className="mt-2 text-xs text-muted"><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-gold" /> months where you hit your goal of {goals.monthly}</p>
-        {s.undated > 0 && <p className="mt-1 text-xs text-muted">{s.undated} finished book{s.undated === 1 ? ' has' : 's have'} no finish date, so {s.undated === 1 ? 'it isn’t' : 'they aren’t'} in these charts. Add dates on the book’s page.</p>}
+        {undated.length > 0 && (
+          <div className="mt-3 rounded-xl border border-gold p-3" role="note">
+            <p className="text-sm"><strong>{undated.length}</strong> finished book{undated.length === 1 ? ' has' : 's have'} no finish date, so {undated.length === 1 ? 'it isn’t' : 'they aren’t'} counted in “this year”, “this month” or the charts yet.</p>
+            <button className="mt-1 text-sm text-accent underline" aria-expanded={datesOpen} onClick={() => setDatesOpen(!datesOpen)}>{datesOpen ? 'Hide' : 'Add the dates'}</button>
+            {datesOpen && (
+              <ul className="fade-in mt-2 space-y-2">
+                {undated.map((v) => (
+                  <li key={v.book.id} className="flex items-center gap-2">
+                    <span className="serif min-w-0 flex-1 truncate text-sm font-semibold">{v.book.title}</span>
+                    <input type="date" className="field !min-h-9 !w-auto !py-1 text-sm" max={localToday()} aria-label={`Finish date for ${v.book.title}`} onChange={(e) => e.target.value && updateBook(v.book.id, { finishedAt: e.target.value })} />
+                    <button className="btn btn-ghost !min-h-9 !px-3 !py-1 text-xs" onClick={() => updateBook(v.book.id, { finishedAt: localToday() })}>Today</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="card p-5" aria-label="Books per year">

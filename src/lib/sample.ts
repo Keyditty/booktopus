@@ -1,6 +1,7 @@
 import type { Candidate, Format, ReadingStatus, SourceName } from '../types'
 import { commitImport, planImport, placeOnArm } from './store'
 import { db } from './db'
+import { localToday } from './normalize'
 
 type S = [string, string, string, Format, SourceName, ReadingStatus | 'want' | 'fav', string, string?, string?]
 // title, author, isbn, format, source, status, genre, narrator, series
@@ -30,7 +31,7 @@ export async function loadSampleBooks() {
     activity: source === 'audible' ? 'purchased' : 'borrowed', events: [],
     status: st === 'want' || st === 'fav' ? undefined : st, wantToRead: st === 'want', favorite: st === 'fav' || title === 'Project Hail Mary',
     rating: st === 'finished' || st === 'fav' ? 4 + (i % 2) : undefined,
-    finishedAt: st === 'finished' ? (() => { const d = new Date(); d.setDate(5 + (i % 20)); d.setMonth(d.getMonth() - (i % 8)); return d.toISOString().slice(0, 10) })() : undefined,
+    finishedAt: st === 'finished' ? (() => { const d = new Date(); d.setDate(5 + (i % 20)); d.setMonth(d.getMonth() - (i % 8)); return localToday(d) })() : undefined,
     notes: st === 'finished' && i % 3 === 0 ? 'Loved this one.' : undefined,
     confidence: 1, provenance: 'Sample data', enriched: 'skipped',
   }))

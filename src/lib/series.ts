@@ -105,7 +105,7 @@ export async function findSeries(q: SeriesQuery): Promise<FindSeriesOutcome> {
   if (token) {
     try { const r = await hardcoverSeries(q, token); if (r) return { result: r, notes }; notes.push('Hardcover had no series for this book.') }
     catch (e) { notes.push(`Hardcover: ${(e as Error).message}.`) }
-  } else notes.push('Hardcover skipped (no token saved in Settings).')
+  }
   try { const r = await inventaireSeries(q); if (r) return { result: r, notes }; notes.push('Inventaire had no series for this book.') }
   catch (e) { notes.push(`Inventaire: ${(e as Error).message}.`) }
   return { result: null, notes }

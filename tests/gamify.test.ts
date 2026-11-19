@@ -71,6 +71,11 @@ describe('levels, badges, messages', () => {
 })
 
 describe('suggestions', () => {
+  it('does not crash on a to-read book with no genre or author history (this crashed the Reef page)', () => {
+    const bs = [book({ status: 'finished', genres: ['Fantasy'], authors: ['A One'] }), book({ title: 'No Genre Pile Book', wantToRead: true, authors: ['Z Nine'] })]
+    const s = suggestions(views(bs), NOW)
+    expect(s.find((x) => x.book.title === 'No Genre Pile Book')!.reason).toBe('From your to-read pile')
+  })
   it('suggests the next book in a series and flags stalled reads', () => {
     const bs = [
       book({ title: 'Dune', series: 'Dune', seriesNumber: 1, status: 'finished', genres: ['Sci-Fi'] }),
